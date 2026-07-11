@@ -139,7 +139,7 @@ def grind_lux(count_exp, count_thd, teams):
     wait_while_condition(lambda: not now.button("Exp"))
     time.sleep(1)
     gui.press("esc")
-    if p.BONUS: collect_dailies()
+    if p.COLLECT: collect_dailies()
     logging.info("Done with Luxcavation!")
 
 

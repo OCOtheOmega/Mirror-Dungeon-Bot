@@ -384,6 +384,7 @@ def set_team(team, teams, keywordless):
 def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning):
     p.HARD = hard
     p.BONUS = settings['bonus']
+    p.COLLECT = settings['collect']
     p.RESTART = settings['restart']
     p.ALTF4, p.ALTF4_lux = settings['altf4']
     p.NETZACH = settings['enkephalin']

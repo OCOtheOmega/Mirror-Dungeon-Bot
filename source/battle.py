@@ -448,7 +448,7 @@ def fight(lux=False):
                 if is_focused and not loc.button("winrate_on", "winrate", wait=2, method=cv2.TM_SQDIFF_NORMED):
                     win_click(1385, 930)
 
-                # cv2.imwrite(f"data/battle_struggle/{time.time()}.png", create_mask(screenshot(region=(0, 820, 1920, 100)), (0, 220, 230), 20))
+                # cv2.imwrite(f"data/battle_struggle/{time.time()}.png", screenshot(region=(0, 820, 1920, 100)))
 
                 if not lux and p.HARD: select_ego()
                 gui.press("enter", 1, 0.1)

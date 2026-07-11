@@ -10,6 +10,7 @@ DUPLICATES = False
 
 LOG = True
 BONUS = False
+COLLECT = True
 RESTART = True
 ALTF4 = False
 ALTF4_lux = False

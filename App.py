@@ -1730,7 +1730,8 @@ class MyApp(QWidget):
         
 
         self.settings = {
-            'bonus'      : self.buttons['on0'].isChecked() if not self.is_lux else self.buttons['on10'].isChecked(),
+            'bonus'      : self.buttons['on0'].isChecked(),
+            'collect'    : self.buttons['on10'].isChecked(),
             'restart'    : self.buttons['on1'].isChecked() if not self.is_lux else self.buttons['on7'].isChecked(),
             'altf4'      : [self.buttons['on2'].isChecked(), self.buttons['on8'].isChecked()],
             'enkephalin' : self.buttons['on3'].isChecked() if not self.is_lux else self.buttons['on9'].isChecked(),
