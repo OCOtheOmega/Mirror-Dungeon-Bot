@@ -9,8 +9,8 @@ testing
 choices
 game.log
 game.csv
-testing.py
 convert_ego.py
 os_wayland_backend.py
 input_api
+benchmark.json
 test.py

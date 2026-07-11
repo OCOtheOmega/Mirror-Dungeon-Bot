@@ -449,7 +449,6 @@ class SIFTMatcher:
 
         self.base_color = self._prepare_image(image, region)
         base_gray = cv2.cvtColor(self.base_color, cv2.COLOR_BGR2HSV)[:, :, 2]
-        # cv2.cvtColor(self.base_color, cv2.COLOR_BGR2GRAY)
 
         sift_params.setdefault('nfeatures', 3000)
         sift_params.setdefault('contrastThreshold', 0.00)
@@ -496,30 +495,35 @@ class SIFTMatcher:
         gray = cv2.cvtColor(template_color, cv2.COLOR_BGR2HSV)[:, :, 2]
         return template_color, gray
 
-    def _color_score(self, lab_t, M):
-        h, w = lab_t.shape[:2]
-        M_inv = np.linalg.inv(M)
-        # if np.any(np.abs(M_inv) > 1e8):
-        #     return 0.0
+    def _color_score(self, template_color, M):
+        h, w = template_color.shape[:2]
+        try:
+            M_inv = np.linalg.inv(M)
+            if np.any(np.abs(M_inv) > 1e8):
+                return 0.0
+            
+            warped = cv2.warpPerspective(self.base_color, M_inv, (w, h))
+            res = cv2.matchTemplate(warped, template_color, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, _ = cv2.minMaxLoc(res)
+            return float(max_val)
         
-        warped = cv2.warpPerspective(self.base_color, M_inv, (w, h))
-        blur_w = cv2.GaussianBlur(warped, (5, 5), 0)
-        lab_w = cv2.cvtColor(blur_w, cv2.COLOR_BGR2Lab).astype(np.float32)
-        
-        rmse = np.sqrt(np.mean(np.sum((lab_t - lab_w) ** 2, axis=2)))
-        return float(np.clip(1.0 - rmse / 30.0, 0.0, 1.0))
+        except np.linalg.LinAlgError: # bad homography
+            return 0.0
+        except cv2.error: # C++ backend error, likely some sift internal race condition
+            logging.exception("Error in color score calculation")
+            return 1.0
 
-    def _geometry(self, kp1, des1, inlier_ratio=0.25):
-        if des1 is None or self.des_base is None:
+    def _geometry(self, kp1, des1, kp_base, des_base, inlier_ratio=0.2, template=None):
+        if des1 is None or des_base is None:
             return None
         n_kp = len(kp1)
-        good = self._bf.match(des1, self.des_base)
+        good = self._bf.match(des1, des_base)
         if not good:
             return None
 
         src = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-        dst = np.float32([self.kp_base[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-        M, mask = cv2.findHomography(src, dst, cv2.RANSAC, maxIters=300)
+        dst = np.float32([kp_base[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+        M, mask = cv2.findHomography(src, dst, cv2.RANSAC, maxIters=300, ransacReprojThreshold=5.0)
         if M is None or mask is None:
             return None
 
@@ -529,15 +533,16 @@ class SIFTMatcher:
         
         return M, mask, good, n_kp
     
-    def _locate(self, template, inlier_ratio=0.25, color_threshold=0.3):
+    def _locate(self, template, inlier_ratio=0.2, color_threshold=0.8):
         tpl_color, tpl_gray = self._prepare_template(self._load_color(template))
-        blur_template = cv2.GaussianBlur(tpl_color, (5, 5), 0)
-        lab_t = cv2.cvtColor(blur_template, cv2.COLOR_BGR2Lab).astype(np.float32)
 
         kp1, des1 = self.sift.detectAndCompute(tpl_gray, None)
+        kp_base = self.kp_base
+        des_base = self.des_base
         
-        while des1 is not None and len(kp1) > 0:
-            result = self._geometry(kp1, des1, inlier_ratio=inlier_ratio)
+        n_kp_prev = len(kp_base)
+        while des1 is not None and len(kp_base) > 0:
+            result = self._geometry(kp1, des1, kp_base, des_base, inlier_ratio=inlier_ratio, template=tpl_gray)
             if result is None:
                 break
             M, mask, good, n_kp = result
@@ -548,19 +553,21 @@ class SIFTMatcher:
             xs, ys = dst[:,0,0], dst[:,0,1]
             x_min, x_max, y_min, y_max = xs.min(), xs.max(), ys.min(), ys.max()
             
-            if x_max - x_min > 2*w or y_max - y_min > 2*h:
-                break
-
-            inlier_indices = {good[i].queryIdx for i, is_inlier in enumerate(mask) if is_inlier}
+            keep = []
+            for i, kp in enumerate(kp_base):
+                if cv2.pointPolygonTest(dst, kp.pt, False) >= 0:
+                    continue
+                keep.append(i)
             
-            keep_indices = [i for i in range(len(kp1)) if i not in inlier_indices]
-            if not keep_indices or len(keep_indices) == len(kp1):
+            if not keep or len(keep) >= n_kp_prev:
                 break
-                
-            kp1 = [kp1[i] for i in keep_indices]
-            des1 = des1[keep_indices]
+            
+            n_kp_prev = len(keep)
+            kp_base = [kp_base[i] for i in keep]
+            des_base = des_base[keep]
 
-            color = self._color_score(lab_t, M)
+            color = self._color_score(tpl_color, M)
+            # print(color)
             if color < color_threshold:
                 continue
 
