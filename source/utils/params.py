@@ -24,6 +24,9 @@ KEYWORDLESS = {}
 HARD = False
 EXTREME = False
 APP = None
+DEFENSE_TURNS = 0
+MAX_DEFENSE = 0
+HOS_MODE = False
 
 PICK = {}
 IGNORE = {}

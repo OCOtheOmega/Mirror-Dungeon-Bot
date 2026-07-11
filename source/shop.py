@@ -40,6 +40,21 @@ super_ranges = {
 }
 
 
+def reroll_until_skill3():
+    if p.HOS_MODE is True:
+        while True:
+            buy_skill3()
+            if now.button("purchased") or now.button("cost", "purchased"):
+                print("Bought Skill 3")
+                break
+            if balance() < 200:
+                break
+            win_click(1489, 177, tsize=(180, 53))
+            connection()
+            time.sleep(0.1)
+    else:
+        return
+
 def combo_counter(combo):
     counter = {}
     for tier in combo:
@@ -69,7 +84,7 @@ def decide_fusion(target_tier, inventory, depth=0):
         for combo in combos
         if low <= sum(item_points[t] for t in combo) <= high
     ]
-    
+
     best_choice = None
     best_missing = None
     best_missing_cost = None
@@ -85,10 +100,10 @@ def decide_fusion(target_tier, inventory, depth=0):
                 deficit = count_needed - have
                 missing[tier] = deficit
                 missing_cost += deficit * item_points[tier]
-        
+
         if missing.get(4, 0) > 0: # we are not buying tier 4 for fusion, no way
             continue
-        
+
         if p.SUPER == "shop" and not depth and missing.get(3, 0) == 1 and \
            sum([missing.get(i, 0) for i in range(1, 2)]) == 0:
             new_have = {tier: len(items) for tier, items in inventory.items()}
@@ -121,7 +136,7 @@ def decide_fusion(target_tier, inventory, depth=0):
 
         if best_missing_cost is None        or \
            missing_cost < best_missing_cost or \
-          (missing_cost == best_missing_cost and 
+          (missing_cost == best_missing_cost and
            total < best_total_cost):
 
             best_choice = combo
@@ -167,12 +182,12 @@ def inventory_check(reg, h, uptie_det=True):
                             uptie[gift] = enhance_cost[uptie_ego[gift]]
                     except cv2.error:
                         print("Uptie detection failed")
-                
+
                 fuse_shelf = rectangle(fuse_shelf, (int(x - 62 - reg[0]), int(y - 72 - reg[1])), (int(x + 60 - reg[0]), int(y + 60 - reg[1])), (0, 0, 0), -1)
                 image = rectangle(image, (int(x - 62 - reg[0]), int(y - 72 - reg[1])), (int(x + 60 - reg[0]), int(y + 60 - reg[1])), (0, 0, 0), -1)
             except gui.ImageNotFoundException:
                 continue
-    
+
     for gift in list(p.KEYWORDLESS.keys()):
         try:
             if gift in CACHE: template = CACHE[gift]
@@ -267,7 +282,7 @@ def get_inventory():
                     _, y = gui.center(box)
                     y = max(295, min(777, y))
                     region = (920, y, 790, 777 - y)
-                
+
                 coords, coords_agg, have, uptie = inventory_check(region, 0)
                 if box:
                     break
@@ -277,7 +292,7 @@ def get_inventory():
 
                 if LocateGray.check(PTH["gifts_owned"], region=REG["fuse_shelf"], wait=False):
                     break
-                
+
                 new_coords, new_coords_agg, new_have, new_uptie = inventory_check(REG["fuse_shelf_peak"], h)
                 coords = concat(coords, new_coords)
                 coords_agg = concat(coords_agg, new_coords_agg)
@@ -300,12 +315,12 @@ def get_inventory():
             _, y = gui.center(box)
             y = max(295, min(777, y))
             region = (920, y, 790, 777 - y)
-        
+
         coords, coords_agg, have, uptie = inventory_check(region, 0)
-    
+
     if uptie is None:
         raise RuntimeError
-    
+
     p.TO_UPTIE = uptie
     return coords, coords_agg, have
 
@@ -326,8 +341,8 @@ def fuse_selected():
     wait_while_condition(lambda: not now.button("Confirm"), lambda: gui.press("space") if now.button("Confirm.2") else None, timer=1.5)
     connection()
     wait_while_condition(
-        lambda: loc.button("Confirm", wait=0.5), 
-        lambda: gui.press("space"), 
+        lambda: loc.button("Confirm", wait=0.5),
+        lambda: gui.press("space"),
         interval=0.2
     )
 
@@ -358,7 +373,7 @@ def perform_clicks(to_click):
             h = pos[2]
             time.sleep(0.2)
         ClickAction(pos[:2], ver="forecast!").execute(click_rgb)
-    
+
     fuse_selected()
     to_click.clear()
 
@@ -427,7 +442,7 @@ def get_gifts(gifts, reg, is_fuse=False):
 def click_gifts(gifts, reg, chain=None, is_fuse=False):
     if is_fuse and LocateGray.check(PTH["gifts_owned"], region=REG["gifts_owned"], wait=False):
         return True
-    
+
     gift_searcher = get_gifts(gifts, reg, is_fuse=is_fuse)
     for coord in gift_searcher:
         ignore = LocateRGB.locate_all(PTH["cannot_fuse"], region=reg, threshold=80)
@@ -452,7 +467,7 @@ def get_fuse_list():
         if not p.GIFTS[0].get(f"fuse{i}", False):
             continue
         gift_list += [name for name, tier in p.GIFTS[0][f"fuse{i}"].items() if tier is None]
-    return gift_list    
+    return gift_list
 
 def handle_available_fusion():
     print("checking available fusion...")
@@ -464,14 +479,14 @@ def handle_available_fusion():
 
     if not now_rgb.button("fusion_available"):
         return now_rgb.button("scroll", "scroll_full")
-    
+
     gift_list = get_fuse_list()
     print(f"gifts to fuse: {gift_list}")
     if not gift_list: return now_rgb.button("scroll", "scroll_full")
-    
+
     if click_gifts(gift_list, REG["fuse_shelf_top"], chain=fuse_selected, is_fuse=True):
         return now_rgb.button("scroll", "scroll_full")
-    
+
     if now_rgb.button("scroll", "scroll_full"):
         h = 1
         adj = 0
@@ -496,7 +511,7 @@ def fuse():
             print("scroll down for invetory scan alignment")
             browse_fast(hook_x)
             time.sleep(0.5)
-    
+
     coords, coords_agg, have = get_inventory()
     to_click = []
     fuse_type = 0
@@ -509,7 +524,7 @@ def fuse():
     for i in range(len(p.GIFTS)):
         if not list(p.GIFTS[i]["uptie2"].keys())[0] in have.keys():
             _, missing = decide_fusion(4, coords_agg)
-            if missing: 
+            if missing:
                 if i == 0 or not advanced_fusing:
                     return missing
                 else:
@@ -693,9 +708,9 @@ def sell(gifts):
                     browse(hook_x, step=-165, adj=adj)
                     ck = LocateRGB.locate(PTH["height_ck"], region=(920, 585, 790, 165))
                     adj = 618 - gui.center(ck)[1] if ck else 0
-            
+
             if found_flag: continue
-            
+
             close_panel()
             return False # nothing to sell
         else:
@@ -749,7 +764,7 @@ def balance():
         bal = ""
         for i in digits: bal += str(i[0])
         bal = int(bal or -1)
-        if bal != -1 and bal < 300 and answer_me: 
+        if bal != -1 and bal < 300 and answer_me:
             time.sleep(0.2)
             answer_me = False # you game me an answer, but not your own
             bal = -1 # I will ask again
@@ -771,9 +786,9 @@ def conf_gift():
         connection()
     except RuntimeError:
         pass
-    
+
     input_with_fallback(
-        "space", 
+        "space",
         lambda: now_click.button("Confirm"),
         lambda: wait_while_condition(
             lambda: loc.button("Confirm", wait=0.5),
@@ -823,6 +838,8 @@ def get_shop(shop_shelf):
 def buy_known(aff):
     shop_shelf = update_shelf()
     output = False
+    if p.HOS_MODE:
+        buy_skill3()
     for gift in aff["buy"]:
         try:
             res = gui.center(LocateRGB.try_locate(PTH[gift], image=shop_shelf, region=REG["buy_shelf"], comp=0.75, conf=0.83))
@@ -841,7 +858,7 @@ def buy_affinity(aff):
     while box:
         shop_shelf = update_shelf()
         box = LocateRGB.locate(PTH[aff["checks"][0]], region=REG["buy_shelf"], image=shop_shelf, method=cv2.TM_SQDIFF_NORMED, comp=0.88, conf=0.8)
-        if box: 
+        if box:
             res = gui.center(box)
             win_click(res)
             conf_gift()
@@ -907,11 +924,11 @@ def buy_loop(missing, floor1=False, keyword_ref=True):
     print("need", missing)
     result, missing = buy(missing)
     if not result or floor1:
-        try: 
+        try:
             if keyword_ref and ((bal:= balance()) >= 300 or bal >= 200 and p.BUFF[5] > 0):
                 Action(p.SUPER, click=(1715, 176), ver="keywordRef").execute(shop_click)
                 wait_while_condition(
-                    condition=lambda: now.button("keywordRef") and not now.button("connecting"), 
+                    condition=lambda: now.button("keywordRef") and not now.button("connecting"),
                     action=confirm_affinity
                 )
                 connection()
@@ -939,14 +956,14 @@ def buy_loop(missing, floor1=False, keyword_ref=True):
 
 
 def buy_skill3():
-    if balance() <= 120: 
+    if balance() <= 120:
         return
-    
-    if (p.SUPER == "shop" and 
-       (now.button("purchased") or 
-        now.button("cost", "purchased"))): 
+
+    if (p.SUPER == "shop" and
+       (now.button("purchased") or
+        now.button("cost", "purchased"))):
         return
-    
+
     sold = []
     if p.SUPER == "supershop":
         sold = LocateGray.locate_all(PTH["purchased"], region=REG["purchased_sup!"])
@@ -965,7 +982,7 @@ def buy_skill3():
             break
     else:
         return
-    
+
     if coord == None or coord[1] - 120 < 0:
         return
 
@@ -984,7 +1001,7 @@ def buy_skill3():
 def revive_idiots():
     revivals = min(p.DEAD, balance()//100)
     if revivals < 1: return
-    
+
     ClickAction((293, 705), ver="return").execute(click)
     for _ in range(revivals):
         if not wait_while_condition(lambda: now.button("return"), lambda: win_click(1545, 690), timer=3):
@@ -998,18 +1015,18 @@ def revive_idiots():
     Action("return", ver=p.SUPER).execute(click)
     time.sleep(0.2)
 
-def heal_all():
-    if balance() < 100: return
+    def heal_all():
+        if balance() < 100: return
 
-    ClickAction((293, 705), ver="return").execute(click)
-    try:
-        ClickAction((1545, 500), ver="connecting").execute(click)
-        connection()
-        time.sleep(0.2)
-    finally:
-        ClickAction((1545, 500), ver="return").execute(click)
-        Action("return", ver=p.SUPER).execute(click)
-        time.sleep(0.2)
+        ClickAction((293, 705), ver="return").execute(click)
+        try:
+            ClickAction((1545, 500), ver="connecting").execute(click)
+            connection()
+            time.sleep(0.2)
+        finally:
+            ClickAction((1545, 500), ver="return").execute(click)
+            Action("return", ver=p.SUPER).execute(click)
+            time.sleep(0.2)
 
 ### General
 def leave():
@@ -1029,7 +1046,7 @@ def shop():
 
     if now.button("Confirm"):
         if not input_with_fallback(
-            "space", 
+            "space",
             lambda: now_click.button("Confirm"),
             lambda: wait_while_condition(
                 lambda: now.button("Confirm"),
@@ -1038,8 +1055,9 @@ def shop():
         ): return False
 
     if p.DEAD > 0 and p.HARD:
-        revive_idiots()
-        heal_all()
+        if not p.HOS_MODE:
+            revive_idiots()
+            heal_all()
 
     if p.LVL > 11:
         for _ in range(min(p.LVL - 11, 3)):
@@ -1065,14 +1083,14 @@ def shop():
     if 5 + p.EXTREME*11 > p.LVL > 1 or not p.SKIP:
         buy_some(rerolls=0, priority=True)
         fuse_loop()
-    
+
     if p.EXTREME:
         win_click(1489, 177, tsize=(180, 53))
         connection()
         time.sleep(0.1)
         for _ in range(1 + int(p.SUPER == "supershop")):
             buy_skill3()
-    
+
     time.sleep(0.1)
     leave()
     return True

@@ -218,6 +218,9 @@ def move():
         ])
         connection()
         return False
+    if len(p.SELECTED) - p.DEAD == 1:
+        p.DEFENSE_TURNS = 67 # <- Funny Rien reference
+
     # fail detection end
     if now.button("victory") or not now.button("Move"): return False
 

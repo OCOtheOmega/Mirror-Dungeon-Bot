@@ -283,6 +283,7 @@ class MyApp(QWidget):
             return field
 
         add_button("webhook_open", "Discord Webhook", self.config, (44, 82, 192, 28), 13, self.toggle_webhook_panel)
+        add_button("hos_mode", "Arayashu", self.config, (244, 82, 192, 28), 13, self.update_button_icons, checkable=True)
 
         self.webhook_panel = QFrame(self.config)
         self.webhook_panel.setGeometry(24, 104, 652, 560)
@@ -519,10 +520,10 @@ class MyApp(QWidget):
             self.activate_ego_gifts({})
             buff = [1]*4 + [0]*6
             if self.hard:
-                on = [False, True, False, False, False, False, False]
+                on = [False, True, False, False, False, False, False, False]
                 self.set_buttons_active(on + buff)
             else:
-                on = [False, True, False, False, True, False, False]
+                on = [False, True, False, False, True, False, False, False]
                 self.set_buttons_active(on + buff)
             self.sm.delete_config()
             self.sm.save_settings()
@@ -643,7 +644,7 @@ class MyApp(QWidget):
                 'icon': Bot.APP_PTH['sel_lux']
             }) for i in range(5)
         ]
-    
+
     def _get_buff(self):
         return [
             (f'buff{i}', {
@@ -828,6 +829,7 @@ class MyApp(QWidget):
 
         for name, settings in self._get_button_on()[:7] + self._get_card_order() + self._get_buff():
             self.buttons[name] = CustomButton(self.config, settings)
+
         for name, settings in self._get_button_on()[7:]:
             self.buttons[name] = CustomButton(self.lux, settings)
 
@@ -891,6 +893,9 @@ class MyApp(QWidget):
             else:
                 self.buttons[f"on{i + 7}"].setChecked(False)
                 self.buttons[f"on{i + 7}"].setIcon(QIcon())
+
+            if len(state) > 8:
+                self.hos_mode.setChecked(bool(state[8]))
     
     def save_affinity(self):
         state = dict()
@@ -902,6 +907,7 @@ class MyApp(QWidget):
         extra = [self.count, self.count_exp, self.count_thd]
         for i in range(5):
             extra.append(self.buttons[f"on{i + 7}"].isChecked())
+        extra.append(self.hos_mode.isChecked())
         self.sm.set_extra(extra)
         self.sync_webhook_settings(show_message=False)
         self.sm.save_settings()
@@ -917,13 +923,13 @@ class MyApp(QWidget):
         self.set_widgets()
         buff = [1]*4 + [0]*6
         if self.hard:
-            on = [False, True, False, False, False, False, False]
+            on = [False, True, False, False, False, False, False, False]
             self.set_buttons_active(on + buff)
             self.buttons['on0'].config['icon'] = Bot.APP_PTH['sel1_hard']
             for lbl in self.hard_confs:
                 lbl.show()
         else:
-            on = [False, True, False, False, True, False, False]
+            on = [False, True, False, False, True, False, False, False]
             self.set_buttons_active(on + buff)
             self.buttons['on0'].config['icon'] = Bot.APP_PTH['sel1_extra']
             for lbl in self.hard_confs:
@@ -1252,6 +1258,7 @@ class MyApp(QWidget):
             activated.append(self.buttons[f'on{i}'].isChecked())
         for i in range(10):
             activated.append(getattr(self.buttons[f'buff{i}'], 'config', {}).get('state', 0))
+        activated.append(self.hos_mode.isChecked())
         return activated
     
     def ask_csv(self):
@@ -1283,17 +1290,18 @@ class MyApp(QWidget):
 
     
     def set_buttons_active(self, states):
+        if not states: return
+        if len(states) == 18 and isinstance(states[7], bool) and not isinstance(states[8], bool):
+            states = states[:7] + states[8:] + [states[7]]
         on_buttons = [self.buttons[f'on{i}'] for i in range(7)]
         buff_buttons = [self.buttons[f'buff{i}'] for i in range(10)]
-
         buttons = on_buttons + buff_buttons
-
         for button, state in zip(buttons, states):
             button.setChecked(state)
             if int(state) == 1:
                 icon_path = getattr(button, 'config', {}).get('icon', '')
                 if icon_path:
-                    button.setIcon(QIcon(icon_path))     
+                    button.setIcon(QIcon(icon_path))
             elif int(state) > 1:
                 button.setIcon(QIcon(Bot.APP_PTH[f'grace{"+"*int(state - 1)}']))
             else:
@@ -1301,6 +1309,8 @@ class MyApp(QWidget):
             button.setIconSize(button.size())
             if 'state' in getattr(button, 'config', {}):
                 button.config['state'] = int(state)
+        if len(states) > 17:
+            self.hos_mode.setChecked(bool(states[17]))
 
 
     def activate_ego_gifts(self, data):
@@ -1727,8 +1737,9 @@ class MyApp(QWidget):
             'enkephalin' : self.buttons['on3'].isChecked() if not self.is_lux else self.buttons['on9'].isChecked(),
             'skip'       : self.buttons['on4'].isChecked(),
             'wishmaking' : self.buttons['on5'].isChecked(),
-            'winrate'    : self.hard or self.buttons['on6'].isChecked(),
+            'winrate'    : self.hard or self.buttons['on6'].isChecked() if not p.HOS_MODE else self.buttons['on6'].isChecked(), # Thanks to @zombpr for finding this
             'infinity'   : self.hard and self.buttons['on6'].isChecked(),
+            'hos_mode'   : self.hos_mode.isChecked(),
             'buff'       : [getattr(self.buttons[f'buff{i}'], 'config', {}).get('state', 0) for i in range(10)],
             'card'       : self.get_cards(),
             'keywordless': {Bot.WORDLESS[id]['name']: state for id, state in self.keywordless.items()}

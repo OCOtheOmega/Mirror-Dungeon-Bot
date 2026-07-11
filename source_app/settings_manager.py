@@ -211,13 +211,12 @@ class SettingsManager(QObject):
             return [list1, list2, dict1, dict2]
         
         def is_valid_settings_structure(value):
-            if not (isinstance(value, list) and len(value) == 17): return False
-
-            for i in range(17):
-                if i < 7 and not isinstance(value[i], bool):
-                    return False
-                elif not (isinstance(value[i], int) and 0 <= value[i] <= 3):
-                    return False
+            if not (isinstance(value, list) and len(value) == 18): return False
+            for i in range(7):
+                if not isinstance(value[i], bool): return False
+            for i in range(7, 17):
+                if not (isinstance(value[i], int) and not isinstance(value[i], bool) and 0 <= value[i] <= 3): return False
+            if not isinstance(value[17], bool): return False
             return True
         
         def is_valid_cards_structure(value):
@@ -245,7 +244,7 @@ class SettingsManager(QObject):
                         del data[config][key]
                     else: data[config][key] = validate_config_floor(data[config][key], config)
                 elif idx == 7:
-                    if not isinstance(data[config][key], dict): 
+                    if not isinstance(data[config][key], dict):
                         corrupted_data.add("keywordless EGO selection")
                         del data[config][key]
                         continue
@@ -258,7 +257,13 @@ class SettingsManager(QObject):
                             corrupted_data.add("keywordless EGO selection")
                             del data[config][key][id]
                 elif idx == 8:
-                    if not is_valid_settings_structure(data[config][key]):
+                    val = data[config][key]
+                    if isinstance(val, list) and len(val) == 18:
+                        if isinstance(val[7], bool) and not isinstance(val[8], bool):
+                            migrated = val[:7] + val[8:] + [val[7]]
+                            data[config][key] = migrated
+                            val = migrated
+                    if not is_valid_settings_structure(val):
                         corrupted_data.add("grace selection, other settings")
                         del data[config][key]
                         continue
@@ -313,14 +318,14 @@ class SettingsManager(QObject):
             del data["AFFINITY"]
 
         def is_valid_extra_structure(extra_data):
-            if not (isinstance(extra_data, list) and len(extra_data) == 8):
+            if not (isinstance(extra_data, list) and len(extra_data) == 9):
                 return False
             counts = extra_data[:3]
             if counts[0] == -1: counts[0] = 9999 # only needed for checks
             if not all(isinstance(x, int) and x in range(10000) for x in counts):
                 return False
             settings = extra_data[3:]
-            if not all(isinstance(x, bool) for x in settings): 
+            if not all(isinstance(x, bool) for x in settings):
                 return False
             if settings[1] and settings[4]: return False
             return True
