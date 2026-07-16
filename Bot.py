@@ -283,15 +283,11 @@ def main_loop():
 
         if now.button("victory"):
             logging.info('Run Completed')
-            p.DEFENSE_TURNS = 0
-            p.MAX_DEFENSE = 0
             dungeon_end()
             return True
 
         if now.button("defeat"):
             logging.info('Run Failed')
-            p.DEFENSE_TURNS = 0
-            p.MAX_DEFENSE = 0
             dungeon_fail()
             return False
 
@@ -326,8 +322,6 @@ def main_loop():
                 for key in end_locations.keys():
                     if now.button(key):
                         logging.info('Run Completed')
-                        p.DEFENSE_TURNS = 0
-                        p.MAX_DEFENSE = 0
                         dungeon_end()
                         return True
 

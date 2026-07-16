@@ -17,14 +17,7 @@ sins = { # bgr values
     "envy"    : (222,   1, 150),
 }
 
-def defense_skill():
-    try:
-        gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
-        gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
-    except gui.ImageNotFoundException:
-        return
-
-    inv_comp = 1920 / p.WINDOW[2]
+def defense_skill(gear_start, gear_end):
     offset_x = 131
     offset_y = 142
     offset_x2 = 122
@@ -38,9 +31,8 @@ def defense_skill():
 
     for i in range(num_sinners):
         x = first_x + i * spacing
-        win_click(x, click_y)
-        logging.info(f"defense_skill: clicked sinner {i} at x={x}")
-        time.sleep(0.1)
+        win_moveTo(x, click_y, curve=0.5, n_sub=1, inertia=True)
+        win_click()
 
 # HARD MD
 comps = [0.71, 0.77, 0.89, 1]
@@ -52,20 +44,6 @@ best2 = [
     "GardenofThorns", "AEDD", "Lantern", "CavernousWailing", "Capote", "Pursuance", "Regret", "RimeShank", "WishingCairn",
     "ElectricScreaming", "4thMatchFlame", "RedEyesOpen", "ArdorBlossomStar", "BlindObsession", "FluidSac", "HexNail"
 ]
-
-# Checks how many times it should use defense skills
-def defense_turns():
-    if len(p.SELECTED) - p.DEAD == 1:
-        logging.info("Didya forget to turn off Arayashu runs, Yoshihide?")
-        return
-    else:
-        if len(p.SELECTED) - p.DEAD > 10:
-            p.MAX_DEFENSE = 5
-            logging.info("You selected more than 10 sinners, why?")
-        else:
-            # MAX_DEFENSE increases with every odd number of selected sinners
-            for i in range(m.ceil((len(p.SELECTED) - p.DEAD) / 2)):
-                p.MAX_DEFENSE += 1
 
 def get_lowskill():
     image = screenshot(region=(0, 820, 1920, 100))
@@ -291,6 +269,18 @@ def select(sinners):
             death_offset += 1
             continue
         to_click.append(gui.center(region))
+    
+    if death_offset == p.SELECTED:
+        for _ in range(2):
+            gui.press("esc")
+            time.sleep(0.5)
+        chain_actions(click, [
+            Action("forfeit"),
+            Action("ConfirmInvert", ver="connecting"),
+        ])
+        connection()
+        return False
+    
     if len(selected) > correct or len(backup) > correct_back:
         ClickAction((1713, 712), ver="Confirm_alt").execute(click)
         time.sleep(0.21)
@@ -310,8 +300,9 @@ def select(sinners):
         lambda: loc.button("loading", wait=5)
     )
     loading_halt()
+    return True
 
-def chain(gear_start, gear_end, background):
+def chain(gear_start, gear_end, background, is_defense=False):
     # Finding skill3 positions
     x, y = gear_start
     length = gear_end[0] - gear_start[0]
@@ -344,7 +335,7 @@ def chain(gear_start, gear_end, background):
         gui.mouseUp()
 
     else:
-        if p.DEFENSE_TURNS < p.MAX_DEFENSE:
+        if is_defense:
             win_moveTo(gear_start)
             gui.mouseDown()
             x += 75
@@ -384,7 +375,10 @@ def fight(lux=False):
             if x < 1560 and y < 820:
                 win_moveTo(random.randint(1560, 1730), random.randint(250, 620))
                 time.sleep(0.1)
-        select(p.SELECTED)
+
+        can_select = select(p.SELECTED)
+        if not can_select:
+            return False
 
         # for lux with 6 sinners max
         if lux and now.button("TOBATTLE"):
@@ -393,8 +387,11 @@ def fight(lux=False):
     print("Entered Battle")
     last_error = 0
     attempts = 0
-    if p.MAX_DEFENSE == 0:
-        defense_turns()
+    defence_turns = 0
+    max_defense = 0
+    if p.HOS_MODE and len(p.SELECTED) - p.DEAD != 1:
+        max_defense = min(m.ceil((len(p.SELECTED) - p.DEAD) / 2), 5)
+    
     while True:
         ck = False
         if loc.button("winrate", wait=1):
@@ -412,15 +409,16 @@ def fight(lux=False):
                     chain(gear_start, gear_end, background)
 
                 else:
-                    if p.DEFENSE_TURNS < p.MAX_DEFENSE:
-                        defense_skill()
+                    if defence_turns < max_defense:
+                        print(f"use defense!!!")
                         gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
+                        defense_skill(gear_start, gear_end)
                         is_focused = False
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
                         background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
-                        chain(gear_start, gear_end, background)
-                        p.DEFENSE_TURNS += 1
+                        chain(gear_start, gear_end, background, is_defense=True)
+                        defence_turns += 1
                     else:
                         gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))

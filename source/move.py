@@ -209,7 +209,7 @@ def move():
     # run fail detection
     p.DEAD = len([gui.center(box) for box in LocateRGB.locate_all(PTH["0"], region=REG["alldead"], conf=0.9, threshold=40)])
     print(f"{p.DEAD} dead sinners")
-    if p.DEAD >= len(p.SELECTED):
+    if p.DEAD == 12:
         gui.press("esc")
         time.sleep(0.5)
         chain_actions(click, [
@@ -218,8 +218,6 @@ def move():
         ])
         connection()
         return False
-    if len(p.SELECTED) - p.DEAD == 1:
-        p.DEFENSE_TURNS = 67 # <- Funny Rien reference
 
     # fail detection end
     if now.button("victory") or not now.button("Move"): return False
