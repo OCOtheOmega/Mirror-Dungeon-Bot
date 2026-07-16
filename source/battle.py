@@ -55,16 +55,16 @@ best2 = [
 
 # Checks how many times it should use defense skills
 def defense_turns():
-    if len(p.SELECTED) == 1:
+    if len(p.SELECTED) - p.DEAD == 1:
         logging.info("Didya forget to turn off Arayashu runs, Yoshihide?")
         return
     else:
-        if len(p.SELECTED) > 10:
+        if len(p.SELECTED) - p.DEAD > 10:
             p.MAX_DEFENSE = 5
             logging.info("You selected more than 10 sinners, why?")
         else:
             # MAX_DEFENSE increases with every odd number of selected sinners
-            for i in range(m.ceil(len(p.SELECTED) / 2)):
+            for i in range(m.ceil((len(p.SELECTED) - p.DEAD) / 2)):
                 p.MAX_DEFENSE += 1
 
 def get_lowskill():
