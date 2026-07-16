@@ -270,7 +270,7 @@ def select(sinners):
             continue
         to_click.append(gui.center(region))
     
-    if death_offset == p.SELECTED:
+    if death_offset == len(p.SELECTED):
         for _ in range(2):
             gui.press("esc")
             time.sleep(0.5)
