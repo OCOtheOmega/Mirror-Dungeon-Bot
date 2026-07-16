@@ -339,11 +339,11 @@ def chain(gear_start, gear_end, background):
         y -= 46
         for i in range(skill_num):
             if moves[i]:
-                win_moveTo(x + 68, y + 190, duration=0.15, tsize=(60, 60), inertia=True)
+                win_moveTo(x + 68, y + 190, duration=0.13, tsize=(40, 40), curve=0.5, inertia=True)
             else:
-                win_moveTo(x + 68, y + 80, duration=0.15, tsize=(60, 60), inertia=True)
+                win_moveTo(x + 68, y + 80, duration=0.13, tsize=(40, 40), curve=0.5, inertia=True)
             x += 115
-        win_moveTo(x + 91, y + 131, duration=0.15, tsize=(25, 25), inertia=True)
+        win_moveTo(x + 91, y + 131, duration=0.13, tsize=(25, 25), curve=0.5, inertia=True)
         gui.mouseUp()
 
     else:
@@ -353,9 +353,9 @@ def chain(gear_start, gear_end, background):
             x += 75
             y += 46
             for i in range(skill_num):
-                win_moveTo(x + 68, y + 80, duration=0.15, tsize=(60, 60), inertia=True)
+                win_moveTo(x + 68, y + 80, duration=0.13, tsize=(40, 40), curve=0.5, inertia=True)
                 x += 115
-            win_moveTo(x + 91, y, duration=0.15, tsize=(25, 25), inertia=True)
+            win_moveTo(x + 91, y, duration=0.13, tsize=(25, 25), curve=0.5, inertia=True)
             gui.mouseUp()
         else:
             win_moveTo(gear_start)
@@ -364,11 +364,11 @@ def chain(gear_start, gear_end, background):
             y -= 46
             for i in range(skill_num):
                 if moves[i]:
-                    win_moveTo(x + 68, y + 80, duration=0.15, tsize=(60, 60), inertia=True)
+                    win_moveTo(x + 68, y + 80, duration=0.13, tsize=(40, 40), curve=0.5, inertia=True)
                 else:
-                    win_moveTo(x + 68, y + 190, duration=0.15, tsize=(60, 60), inertia=True)
+                    win_moveTo(x + 68, y + 190, duration=0.13, tsize=(40, 40), curve=0.5, inertia=True)
                 x += 115
-            win_moveTo(x + 91, y + 131, duration=0.15, tsize=(25, 25), inertia=True)
+            win_moveTo(x + 91, y + 131, duration=0.13, tsize=(25, 25), curve=0.5, inertia=True)
             gui.mouseUp()
 
 
@@ -421,7 +421,6 @@ def fight(lux=False):
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
                         is_focused = False
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
-                        if lux or p.WINRATE: raise gui.ImageNotFoundException
                         background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
                         chain(gear_start, gear_end, background)
                         p.DEFENSE_TURNS += 1
@@ -430,7 +429,6 @@ def fight(lux=False):
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
                         is_focused = False
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
-                        if lux or p.WINRATE: raise gui.ImageNotFoundException
                         background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
                         chain(gear_start, gear_end, background)
 

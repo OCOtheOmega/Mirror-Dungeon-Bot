@@ -40,8 +40,6 @@ fi
 rm -rf "$APPDIR/usr/bin"/*
 cp -a "$DOCKER_OUTDIR/app"/. "$APPDIR/usr/bin"/
 
-rm -rf "$DOCKER_OUTDIR"
-
 chmod 755 "$APPDIR" "$APPDIR/usr" "$APPDIR/usr/bin"
 chmod +x "$APPDIR/AppRun"
 if [ -f "$APPDIR/usr/bin/app" ]; then
@@ -52,5 +50,6 @@ APPIMAGE_EXTRACT_AND_RUN=1 \
   "$APPIMAGETOOL" "$APPDIR" "$DISTDIR/CGrinder-x86_64.AppImage"
 
 chmod +x "$DISTDIR/${APPNAME}-${ARCH}.AppImage"
+rm -rf "$DOCKER_OUTDIR"
 
 echo "=== Done! Output: $DISTDIR/CGrinder-x86_64.AppImage ==="

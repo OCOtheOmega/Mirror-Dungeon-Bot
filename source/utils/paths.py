@@ -138,8 +138,8 @@ REG = {
     "alldead"        : ( 261, 1019, 1391,   41),
     "suicide"        : ( 756,  233,  437,  121),
     "forfeit"        : ( 740,  547,  151,  208),
-    "directions"     : ( 508,  130,  200,  800),
-    "directions_init": ( 813,  130,  200,  800),
+    "directions"     : ( 482,  130,  200,  800),
+    "directions_init": ( 800,  130,  200,  800),
     "secretEncounter": (1595,  767,  183,  100),
     "skipEncounter"  : (1379,  763,  195,  110),
 

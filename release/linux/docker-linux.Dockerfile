@@ -1,10 +1,16 @@
-FROM quay.io/pypa/manylinux_2_28_x86_64
+# AlmaLinux 9 (glibc 2.34). Required for the Wayland backend: manylinux_2_28
+# (AlmaLinux 8) has no pipewire-gstreamer / libgstpipewire.so in any repo.
+FROM quay.io/pypa/manylinux_2_34_x86_64
 
 RUN yum install -y zlib-devel bzip2-devel openssl-devel \
     libffi-devel readline-devel sqlite-devel xz-devel \
     libxcb xcb-util xcb-util-image xcb-util-keysyms xcb-util-renderutil \
     xcb-util-wm xcb-util-cursor libxkbcommon libxkbcommon-x11 \
-    mesa-libGL gtk3 pango cairo gdk-pixbuf2 atk patchelf && \
+    mesa-libGL gtk3 pango cairo gdk-pixbuf2 atk patchelf \
+    gobject-introspection-devel cairo-devel cairo-gobject-devel \
+    dbus-devel dbus-libs glib2-devel \
+    gstreamer1 gstreamer1-plugins-base gstreamer1-plugins-good \
+    pipewire-gstreamer pipewire-libs && \
     yum clean all
 
 RUN curl https://pyenv.run | bash

@@ -83,3 +83,5 @@ def event():
         if now_click.button("Continue"):
             connection()
             return True
+        if not now.button("event"): 
+            return True

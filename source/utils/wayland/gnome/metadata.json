@@ -1,0 +1,6 @@
+{
+  "uuid": "cgrinder@local",
+  "name": "ChargeGrinder Mutter Bridge",
+  "description": "Exposes GNOME Shell/Mutter window geometry to ChargeGrinder over D-Bus.",
+  "shell-version": ["45", "46", "47", "48", "49"]
+}

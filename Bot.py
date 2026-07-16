@@ -378,6 +378,8 @@ def set_team(team, teams, keywordless):
         p.KEYWORDLESS = keywordless | {"lunarmemory": 2} | {gift: 2 for gift in stones}
     else:
         p.KEYWORDLESS = keywordless
+    if p.HOS_MODE:
+        p.KEYWORDLESS = p.KEYWORDLESS | {"spiderweb": 2}
     logging.info(f'Difficulty: {difficulty}')
 
 
@@ -399,6 +401,9 @@ def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning)
     p.WARNING = warning
 
     if count == -1: count = 9999
+    if hasattr(gui, "prepare_capture"):
+        # Wayland
+        gui.prepare_capture()
     print("Switch to Limbus Window")
     countdown(10)
     logging.info('Script started')

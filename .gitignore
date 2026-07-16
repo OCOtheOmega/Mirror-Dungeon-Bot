@@ -6,11 +6,8 @@ AppDir
 data
 skill_data
 testing
-choices
 game.log
 game.csv
-convert_ego.py
-os_wayland_backend.py
 input_api
 benchmark.json
 test.py

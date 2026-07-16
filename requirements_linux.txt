@@ -1,6 +1,18 @@
 numpy==2.2.4
 opencv-python-headless==4.10.0.84
 PySide6
+
+# Input (both backends) + X11 window/pointer/keymap queries.
+# Xlib is also used by the Wayland backend for pointer/keymap via XWayland.
 python-xlib
 evdev
+
+# X11 backend: screen capture
 mss
+
+# Wayland backend: xdg-desktop-portal + PipeWire capture (gi -> Gio/Gst),
+# and the KWin script callback (dbus-python needs the GLib main loop from PyGObject).
+# PyGObject >= 3.52 requires girepository-2.0 (glib >= 2.80); the AppImage build image
+# (manylinux_2_34 / AlmaLinux 9) only has glib 2.68 / girepository-1.0.
+PyGObject<3.52
+dbus-python

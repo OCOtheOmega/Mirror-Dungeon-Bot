@@ -1,0 +1,16 @@
+.docker_dist
+dist
+build
+AppDir
+release/windows
+venv
+.venv
+**/__pycache__
+.git
+.github
+data
+testing
+game.log
+game.csv
+benchmark.json
+*.AppImage

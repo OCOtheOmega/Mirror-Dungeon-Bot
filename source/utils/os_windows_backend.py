@@ -333,7 +333,7 @@ def _emit_rel_open_loop(dev, dx, dy):
     _get_bridge().mouse_move_relative(int(dx), int(dy))
 
 
-def moveTo(x, y, duration=0, delay=0.0, tsize=(5.0, 5.0), offset_x=0, offset_y=0, curve=0.8, n_sub=None, inertia=False):
+def moveTo(x, y, duration=0, delay=0.0, tsize=(5.0, 5.0), offset_x=0, offset_y=0, curve=1, n_sub=None, inertia=False):
     _fail_safe_check()
     _ensure_mouse_settings()
 
@@ -408,7 +408,7 @@ def dragTo(x, y, duration=0.1, button='left', tsize=(5.0, 5.0), start_x=None, st
         moveTo(start_x, start_y, tsize=tsize)
 
     mouseDown(button, delay=0.03)
-    moveTo(x, y, duration=duration, tsize=tsize, n_sub=1, inertia=False)
+    moveTo(x, y, duration=duration, tsize=tsize, n_sub=1, curve=0.2, inertia=False)
     mouseUp(button, delay=0.03)
 
     if hook:

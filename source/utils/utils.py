@@ -7,16 +7,21 @@ from PySide6.QtCore import QMetaObject, Qt
 if platform.system() == "Windows":
     import source.utils.os_windows_backend as gui
 elif platform.system() == "Linux":
-    if os.environ.get("XDG_SESSION_TYPE") == "x11":
-        try:
+    _session_type = os.environ.get("XDG_SESSION_TYPE")
+    try:
+        if _session_type == "x11":
             import source.utils.os_x11_backend as gui
-        except PermissionError as ex:
+        elif _session_type == "wayland":
+            import source.utils.os_wayland_backend as gui
+        else:
             raise RuntimeError(
-                "Input device access denied on Linux. "
-                "Add your user to the 'input' group and re-login, or run with sufficient permissions."
-            ) from ex
-    else:
-        raise RuntimeError("Wayland is not supported. Use Plasma (X11).")
+                f"Unsupported Linux session type: {_session_type!r}. Expected 'x11' or 'wayland'."
+            )
+    except PermissionError as ex:
+        raise RuntimeError(
+            "Input device access denied on Linux. "
+            "Add your user to the 'input' group and re-login, or run with sufficient permissions."
+        ) from ex
 else:
     raise RuntimeError("Unsupported OS")
 

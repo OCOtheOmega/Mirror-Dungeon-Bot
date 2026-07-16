@@ -1,7 +1,7 @@
 """
 Mouse movement synthesis (arc-length θ(s) model driven).
 
-Designed by Walpth in two weeks of pain and suffering.
+Designed by Walpth in 3 weeks of pain and suffering.
 """
 import math
 import os
@@ -9,7 +9,14 @@ import sys
 
 import numpy as np
 
-from source.utils.movement.generator import generate_mouse_profile, sample_theta_residual, savgol_filter
+from source.utils.movement.generator import (
+    generate_mouse_profile,
+    sample_theta_residual,
+    savgol_filter,
+    move_neighborhood,
+    episode_for_legs,
+    sample_move_context,
+)
 
 
 if "__compiled__" in globals():
@@ -27,9 +34,10 @@ CFG: dict = {
     "bias_perp_std":  2.0,
     "heading_residual_scale": 0.75,
     "oversample": 4,
+    "emission": "error_diffusion",
 }
 
-_LAYOUT_CACHE: dict[str, dict[str, np.ndarray] | None] = {}
+_LAYOUT_CACHE: dict[str, dict[str, np.ndarray]] = {}
 
 
 # Utilities
@@ -106,6 +114,10 @@ def sample_duration(dist, override=None):
     if dist <= 0:
         return 0.05
     
+    # This is basically "random shit go" at this point.
+    # I just used whatever to make the final distribution look reasonable 
+    # and adjusted it through trial and error
+    
     base_duration = -0.167 + 0.182 * np.log2(1 + (dist + 100) / 60)
     sigma_min, sigma_max = 0.003, 0.123
     dist_mid, dist_scale = 80.0, 120.0
@@ -153,6 +165,31 @@ def _allocate_steps(weights: np.ndarray, total_steps: int, min_steps: int = 0) -
         order = np.argsort(raw - steps)[::-1]
         steps[order[:residual]] += 1
     return steps + min_steps
+
+def _emit_integer_events(path_out: np.ndarray, t_out: np.ndarray, start, biased_end):
+    """EV_REL-style integer emission"""
+    pts = np.asarray(path_out, dtype=float)
+    n = len(pts)
+    pos = np.array([round(float(start[0])), round(float(start[1]))], dtype=float)
+    idx = [0]
+    emitted = [pos.copy()]
+    for i in range(1, n):
+        step = np.round(pts[i] - pos)
+        if step[0] != 0.0 or step[1] != 0.0:
+            pos = pos + step
+            idx.append(i)
+            emitted.append(pos.copy())
+    end_px = np.array([round(float(biased_end[0])), round(float(biased_end[1]))], dtype=float)
+    if idx[-1] == n - 1:
+        emitted[-1] = end_px
+    elif emitted[-1][0] != end_px[0] or emitted[-1][1] != end_px[1]:
+        idx.append(n - 1)
+        emitted.append(end_px)
+    else:
+        # Sub-pixel creep after the last crossing
+        idx[-1] = n - 1
+    return np.asarray(emitted, dtype=float), t_out[np.asarray(idx, dtype=int)]
+
 
 def _moving_event_indices(points: np.ndarray) -> np.ndarray:
     points = np.asarray(points)
@@ -208,8 +245,9 @@ def enforce_kinematics(speed_s, theta_s, dist, duration):
 # Core path builder: heading-angle integration
 
 def _integrate_curvature_path(
-    start, end, theta_rel_geom: np.ndarray, speed_geom: np.ndarray, 
+    start, end, theta_rel_geom: np.ndarray, speed_geom: np.ndarray,
     duration: float, n_geom: int, initial_velocity=None,
+    curviness: float = 1.0,
 ) -> np.ndarray:
     sx, sy = float(start[0]), float(start[1])
     ex, ey = float(end[0]),   float(end[1])
@@ -259,7 +297,7 @@ def _integrate_curvature_path(
         iv = np.asarray(initial_velocity, dtype=float)
         if float(np.linalg.norm(iv)) > 1.0:
             iv_heading = math.atan2(float(iv[1]), float(iv[0]))
-            init_delta = _angle_diff(iv_heading, float(theta_abs[0])) * float(CFG["iv_heading_blend"])
+            init_delta = _angle_diff(iv_heading, float(theta_abs[0])) * float(CFG["iv_heading_blend"]) * curviness
             fade = max(float(CFG["initial_heading_fade"]), 1e-6)
             u = np.clip(progress / fade, 0.0, 1.0)
             w = 1.0 - (3.0 * u * u - 2.0 * u * u * u)
@@ -305,6 +343,10 @@ def _build_continuous_trajectory(
     curviness: float = 1.0,
     biased_end: tuple[float, float] | None = None,
     model_path: str | None = None,
+    submove_index: int = 0,
+    n_submoves: int = 1,
+    parent_distance: float | None = None,
+    episode: dict | None = None,
 ):
     sx, sy = float(start[0]), float(start[1])
     ex, ey = float(end[0]),   float(end[1])
@@ -323,11 +365,20 @@ def _build_continuous_trajectory(
     n_geom = max(250, n_steps * CFG["oversample"] + 1)
 
     # 1. Generative model parsing & Curviness adjustment
-    speed_s, theta_s = generate_mouse_profile(model_path or CFG["model_path"], duration, dist)
+    speed_s, theta_s = generate_mouse_profile(
+        model_path or CFG["model_path"], duration, dist,
+        start=(sx, sy), end=(bx, by),
+        submove_index=submove_index, n_submoves=n_submoves,
+        parent_distance=parent_distance, episode=episode,
+    )
     v_avg = dist / duration
     speed_s = np.nan_to_num(speed_s, nan=v_avg, posinf=v_avg * 15.0, neginf=0.0)
     theta_s = np.nan_to_num(theta_s, nan=0.0, posinf=0.0, neginf=0.0)
-    
+
+    # Curviness scales ONLY the macro heading profile (the submove's overall
+    # shape, including any segmented corner the model reproduces at
+    # n_submoves=1). The tremor residual below is left at full scale so a
+    # straightened move still carries natural micro-jitter, not a dead line.
     theta_s = theta_s * curviness
 
     # 2. Enforce C2 continuity
@@ -341,20 +392,16 @@ def _build_continuous_trajectory(
     theta_s = np.nan_to_num(theta_s, nan=0.0, posinf=0.0, neginf=0.0)
 
     n_model = len(speed_s)
-    ds = 1.0 / (n_model - 1)
-    
-    # Build cumulative time axis enforcing constraints
     speed_s = np.nan_to_num(speed_s, nan=0.0, posinf=v_avg * 15.0, neginf=0.0)
-    v_safe = np.clip(speed_s, max(v_avg * 0.15, 1e-6), None)
-    dt_steps = (ds * dist) / v_safe
-    t_stamps = np.concatenate([[0.0], np.cumsum(dt_steps[:-1])])
-    if not np.isfinite(t_stamps[-1]) or t_stamps[-1] <= 0:
-        t_stamps = np.linspace(0.0, duration, n_model)
-    else:
-        t_stamps = t_stamps * (duration / t_stamps[-1])
+    # Speed is parameterised by normalized time (model v21+), so the time axis
+    # is exact by construction. Heading is still arc-parameterised; convert it
+    # to the time axis through the speed integral (arc fraction by time t).
+    t_stamps = np.linspace(0.0, duration, n_model)
+    s_frac = np.concatenate([[0.0], np.cumsum(0.5 * (speed_s[:-1] + speed_s[1:]))])
+    s_frac /= max(float(s_frac[-1]), 1e-9)
+    theta_s = np.interp(s_frac, np.linspace(0.0, 1.0, n_model), theta_s)
 
     # 3. Resample to 1000HZ
-    n_geom = max(250, n_steps * CFG["oversample"] + 1)
     geom_t = np.linspace(0.0, duration, n_geom)
     
     speed_geom = np.nan_to_num(np.interp(geom_t, t_stamps, speed_s), nan=0.0, posinf=v_avg * 15.0, neginf=0.0)
@@ -365,6 +412,7 @@ def _build_continuous_trajectory(
         start=(sx, sy), end=(bx, by),
         theta_rel_geom=theta_geom, speed_geom=speed_geom,
         duration=duration, n_geom=n_geom, initial_velocity=initial_velocity,
+        curviness=curviness,
     )
 
     # 5. Temporal resampling to output grid
@@ -374,17 +422,21 @@ def _build_continuous_trajectory(
         np.interp(t_out, geom_t, path_geom[:, 1]),
     ])
     # 6. Finalize emitted event positions
-    noisy = path_out.copy().astype(float)
-    noisy[0]  = [sx, sy]
-    noisy[-1] = [bx, by] 
-    noisy = np.rint(noisy).astype(float)
-    noisy[0] = [round(sx), round(sy)]
-    noisy[-1] = [round(bx), round(by)]
+    if CFG.get("emission", "error_diffusion") == "error_diffusion":
+        noisy, t_out = _emit_integer_events(path_out, t_out, (sx, sy), (bx, by))
+        n_out = len(noisy)
+    else:
+        noisy = path_out.copy().astype(float)
+        noisy[0]  = [sx, sy]
+        noisy[-1] = [bx, by]
+        noisy = np.rint(noisy).astype(float)
+        noisy[0] = [round(sx), round(sy)]
+        noisy[-1] = [round(bx), round(by)]
 
-    keep = _moving_event_indices(noisy)
-    noisy = noisy[keep]
-    t_out = t_out[keep]
-    n_out = len(noisy)
+        keep = _moving_event_indices(noisy)
+        noisy = noisy[keep]
+        t_out = t_out[keep]
+        n_out = len(noisy)
 
     dt_out = np.concatenate([[0.0], np.diff(t_out)])
     dx_out = np.diff(noisy[:, 0], prepend=noisy[0, 0])
@@ -418,42 +470,62 @@ def _load_layout_data(model_path: str):
     if model_path in _LAYOUT_CACHE:
         return _LAYOUT_CACHE[model_path]
     with np.load(model_path, allow_pickle=True) as data:
-        if "layout_features" not in data:
-            _LAYOUT_CACHE[model_path] = None
-            return None
         layout = {key: data[key] for key in data.files if key.startswith("layout_")}
     _LAYOUT_CACHE[model_path] = layout
     return layout
 
 
-def _weighted_neighbor_indices(data, duration: float, distance: float, k: int = 96) -> np.ndarray:
-    features = data["layout_features"]
-    target = np.log([max(duration, 1e-3), max(distance, 1.0)])
-    train = np.log(np.column_stack([np.maximum(features[:, 0], 1e-3), np.maximum(features[:, 1], 1.0)]))
-    norm = (train - data["layout_log_feat_mean"]) / data["layout_log_feat_std"]
-    target_norm = (target - data["layout_log_feat_mean"]) / data["layout_log_feat_std"]
-    dist2 = np.sum((norm - target_norm) ** 2, axis=1)
-    k = min(k, len(dist2))
-    return np.argpartition(dist2, k - 1)[:k]
+# Curvature-targeted reference selection (on by default). Selecting a reference
+# whose real arc/chord matches the target avoids the endpoint-bridge overshoot
+CURVATURE_SELECT_BANDWIDTH = 0.5
+DEFAULT_CURVATURE_TARGET = 1.0
 
 
-def _sample_layout(data, duration: float, distance: float, n_submovements: int | None = None) -> dict:
-    neighbors = _weighted_neighbor_indices(data, duration, distance)
-    n_choices = data["layout_n_submoves"][neighbors].astype(int)
-    if n_submovements is None:
-        n_submoves = int(np.random.choice(n_choices))
+def _sample_layout(data, n_submovements: int | None, neighbors, weights,
+                   curvature_target: float | None = None,
+                   ref_override: int | None = None) -> dict:
+    neighbors = np.asarray(neighbors, dtype=int)
+
+    if ref_override is not None:
+        # The reference stroke was chosen jointly with the move duration
+        # (generator.sample_move_context): its composition IS the layout, so the
+        # sampled duration is always budgeted into a compatible structure.
+        ref_idx = int(ref_override)
+        n_submoves = max(1, int(data["layout_n_submoves"][ref_idx]))
     else:
-        available = data["layout_n_submoves"].astype(int)
-        max_n = int(np.nanmax(available))
-        n_submoves = int(np.clip(int(n_submovements), 1, max_n))
-        if not np.any(available == n_submoves):
-            n_submoves = int(available[np.argmin(np.abs(available - n_submoves))])
-    n_submoves = max(1, n_submoves)
+        n_choices = data["layout_n_submoves"][neighbors].astype(int)
+        if n_submovements is None:
+            n_submoves = int(np.random.choice(n_choices, p=weights))
+        else:
+            available = data["layout_n_submoves"].astype(int)
+            max_n = int(np.nanmax(available))
+            n_submoves = int(np.clip(int(n_submovements), 1, max_n))
+            if not np.any(available == n_submoves):
+                n_submoves = int(available[np.argmin(np.abs(available - n_submoves))])
+        n_submoves = max(1, n_submoves)
 
-    exact = neighbors[n_choices == n_submoves]
-    if len(exact) == 0:
-        exact = np.flatnonzero(data["layout_n_submoves"].astype(int) == n_submoves)
-    ref_idx = int(np.random.choice(exact if len(exact) else neighbors))
+        mask = n_choices == n_submoves
+        exact = neighbors[mask]
+        exact_p = None
+        if len(exact) and weights is not None:
+            exact_p = np.asarray(weights, dtype=float)[mask]
+            exact_p = exact_p / exact_p.sum() if exact_p.sum() > 0 else None
+        if len(exact) == 0:
+            exact = np.flatnonzero(data["layout_n_submoves"].astype(int) == n_submoves)
+
+        # Curvature-targeted selection: bias the reference pick toward candidates
+        # whose actual arc/chord matches the request, instead of scaling the heading
+        if (curvature_target is not None and len(exact)
+                and "layout_curvature" in data):
+            cand_curv = np.asarray(data["layout_curvature"][exact], dtype=float)
+            pref = np.exp(-np.abs(cand_curv - float(curvature_target))
+                          / max(CURVATURE_SELECT_BANDWIDTH, 1e-6))
+            base = exact_p if exact_p is not None else np.ones(len(exact)) / len(exact)
+            combined = np.asarray(base, dtype=float) * pref
+            if combined.sum() > 0:
+                exact_p = combined / combined.sum()
+
+        ref_idx = int(np.random.choice(exact if len(exact) else neighbors, p=exact_p if len(exact) else None))
 
     move_dur_frac = np.asarray(data["layout_move_dur_frac"][ref_idx, :n_submoves], dtype=float)
     move_dist_frac = np.asarray(data["layout_move_dist_frac"][ref_idx, :n_submoves], dtype=float)
@@ -484,10 +556,11 @@ def _sample_layout(data, duration: float, distance: float, n_submovements: int |
         "pause_frac": pause_frac,
         "waypoint_along": waypoint_along,
         "waypoint_perp": waypoint_perp,
+        "ref_row": ref_idx,
     }
 
 
-def _layout_points(start, end, layout: dict) -> list[tuple[float, float]]:
+def _layout_points(start, end, layout: dict, curviness: float = 1.0) -> list[tuple[float, float]]:
     sx, sy = float(start[0]), float(start[1])
     ex, ey = float(end[0]), float(end[1])
     chord = np.array([ex - sx, ey - sy], dtype=float)
@@ -504,7 +577,7 @@ def _layout_points(start, end, layout: dict) -> list[tuple[float, float]]:
         if abs(along) < 1e-9:
             along = float(cum_dist[i])
         along = float(np.clip(along, -0.25, 1.25))
-        perp = float(np.clip(layout["waypoint_perp"][i], -0.75, 0.75))
+        perp = float(np.clip(layout["waypoint_perp"][i], -0.75, 0.75)) * curviness
         p = np.array([sx, sy], dtype=float) + along * chord + perp * dist * normal
         points.append((float(p[0]), float(p[1])))
     points.append((ex, ey))
@@ -545,10 +618,11 @@ def _compose_submovements(
     initial_velocity,
     curviness: float,
     model_path: str,
+    episodes: list | None = None,
 ) -> dict:
     duration = _quantize_duration(duration, sample_rate)
     move_durations, pause_durations = _budget_layout_durations(layout, duration, sample_rate)
-    waypoints = _layout_points(start, end, layout)
+    waypoints = _layout_points(start, end, layout, curviness)
 
     all_points: list[np.ndarray] = []
     all_times: list[np.ndarray] = []
@@ -574,6 +648,11 @@ def _compose_submovements(
             curviness=curviness,
             biased_end=waypoints[i + 1],
             model_path=model_path,
+            submove_index=i,
+            n_submoves=len(move_durations),
+            parent_distance=math.hypot(float(end[0]) - float(start[0]),
+                                       float(end[1]) - float(start[1])),
+            episode=episodes[i] if episodes is not None and i < len(episodes) else None,
         )
         seg_times = seg["times"] + t_offset
         keep = slice(None) if i == 0 else slice(1, None)
@@ -634,13 +713,6 @@ def _compose_submovements(
 
 # Main entry point
 
-def _public_trajectory(traj: dict) -> dict:
-    return {
-        "points": traj["points"],
-        "times": traj["times"],
-    }
-
-
 def build_trajectory(
     start,
     end,
@@ -651,32 +723,42 @@ def build_trajectory(
     initial_velocity=None,
     curviness: float = 1.0,
     n_submovements: int | None = None,
+    curvature_target: float | None = DEFAULT_CURVATURE_TARGET,
 ):
     sx, sy = float(start[0]), float(start[1])
     ex, ey = float(end[0]), float(end[1])
     target_height = target_height if target_height is not None else target_width
+    curviness = max(0.0, float(curviness))
     angle = math.atan2(ey - sy, ex - sx)
     biased_end = _sample_endpoint_bias((ex, ey), angle, target_width, target_height)
     dist = math.hypot(ex - sx, ey - sy)
-    duration = _quantize_duration(sample_duration(dist, duration_override), sample_rate)
+    donor = None
+    if duration_override is None:
+        # One coherent draw: the donor stroke supplies duration AND composition
+        # (and, below, the layout fractions plus every leg's episode center).
+        curvature_pref = (None if curvature_target is None
+                          else (float(curvature_target), CURVATURE_SELECT_BANDWIDTH))
+        duration, donor, _n = sample_move_context(
+            CFG["model_path"], dist, (sx, sy), biased_end,
+            n_submovements=n_submovements, curvature_pref=curvature_pref)
+    else:
+        duration = sample_duration(dist, duration_override)
+    duration = _quantize_duration(duration, sample_rate)
 
     layout_data = _load_layout_data(CFG["model_path"])
-    if layout_data is None:
-        return _public_trajectory(_build_continuous_trajectory(
-            start,
-            end,
-            duration_override=duration,
-            target_width=target_width,
-            target_height=target_height,
-            sample_rate=sample_rate,
-            initial_velocity=initial_velocity,
-            curviness=curviness,
-            biased_end=biased_end,
-        ))
 
-    layout = _sample_layout(layout_data, duration, dist, n_submovements)
+    # Shared behavioral neighborhood: one move-level query selects the
+    # episodes that drive both the layout and every leg's profile scores.
+    rows, weights, _ = move_neighborhood(CFG["model_path"], duration, dist, start, biased_end)
+    layout = _sample_layout(layout_data, n_submovements, rows, weights,
+                            curvature_target=curvature_target,
+                            ref_override=donor)
+    episodes = episode_for_legs(CFG["model_path"], int(layout["ref_row"]),
+                                int(layout["n_submoves"]), rows, weights,
+                                curvature_target=curvature_target)
+
     if int(layout["n_submoves"]) <= 1:
-        return _public_trajectory(_build_continuous_trajectory(
+        return _build_continuous_trajectory(
             start,
             end,
             duration_override=duration,
@@ -686,9 +768,10 @@ def build_trajectory(
             initial_velocity=initial_velocity,
             curviness=curviness,
             biased_end=biased_end,
-        ))
+            episode=episodes[0] if episodes else None,
+        )
 
-    return _public_trajectory(_compose_submovements(
+    return _compose_submovements(
         start,
         biased_end,
         end,
@@ -700,4 +783,5 @@ def build_trajectory(
         initial_velocity,
         curviness,
         CFG["model_path"],
-    ))
+        episodes=episodes,
+    )

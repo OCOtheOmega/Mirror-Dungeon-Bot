@@ -537,7 +537,7 @@ def fuse():
         got_all = True
 
     # get recipe ego gifts
-    if advanced_fusing:
+    if advanced_fusing and not p.HOS_MODE:
         i, _, fuse_type = advanced_fusing[0]
         set_affinity(i)
     elif got_all:
@@ -1015,18 +1015,18 @@ def revive_idiots():
     Action("return", ver=p.SUPER).execute(click)
     time.sleep(0.2)
 
-    def heal_all():
-        if balance() < 100: return
+def heal_all():
+    if balance() < 100: return
 
-        ClickAction((293, 705), ver="return").execute(click)
-        try:
-            ClickAction((1545, 500), ver="connecting").execute(click)
-            connection()
-            time.sleep(0.2)
-        finally:
-            ClickAction((1545, 500), ver="return").execute(click)
-            Action("return", ver=p.SUPER).execute(click)
-            time.sleep(0.2)
+    ClickAction((293, 705), ver="return").execute(click)
+    try:
+        ClickAction((1545, 500), ver="connecting").execute(click)
+        connection()
+        time.sleep(0.2)
+    finally:
+        ClickAction((1545, 500), ver="return").execute(click)
+        Action("return", ver=p.SUPER).execute(click)
+        time.sleep(0.2)
 
 ### General
 def leave():

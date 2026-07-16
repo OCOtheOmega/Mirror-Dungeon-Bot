@@ -58,6 +58,9 @@ def _cmd(output_name: str, console_mode: str):
         f"--include-data-files={os.path.join(ROOT_DIR, 'source', 'utils', 'bridge', 'bridge.dll')}=move_assets/bridge.dll",
         f"--include-data-files={os.path.join(ROOT_DIR, 'source', 'utils', 'movement', 'model.npz')}=move_assets/model.npz",
         "--nofollow-import-to=source.utils.os_x11_backend",
+        "--nofollow-import-to=source.utils.os_wayland_backend",
+        "--nofollow-import-to=source.utils.wayland",
+        "--nofollow-import-to=source.utils.wayland.*",
         ENTRY,
     ]
 

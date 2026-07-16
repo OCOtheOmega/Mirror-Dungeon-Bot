@@ -78,7 +78,7 @@ def directions(is_aligned=True):
     regions = dict()
     dir_reg = "directions_init" if not is_aligned else "directions"
     reg_xy = (634, 80) if is_aligned else (914, 0)
-    # cv2.imwrite(f"testing/directions{time.time()}.png", screenshot(region=REG[dir_reg]))
+    # cv2.imwrite(f"data/move_debug/directions{time.time()}.png", screenshot(region=REG[dir_reg]))
     for i, suffix in options.items():
         if now.button(suffix, dir_reg, conf=0.85):
             regions[i] = (reg_xy[0], reg_xy[1] + i * 310, 282, 275)
@@ -272,6 +272,7 @@ def move():
         position(shift=adjust)
 
     regions = directions()
+    print(f"Visible directions re-check: {list(regions.keys())}")
     if adjust:
         keys = [i + adjust for i in regions.keys() if 0 <= i + adjust <= 2]
         regions = {key: (634, 80 + key * 310, 282, 275) for key in keys}
@@ -285,8 +286,9 @@ def move():
         else: srch_regions = {i: (634 + 380 * depth, 80 + i * 310, 282, 275) for i in range(3)}
 
         for level, region in srch_regions.items():
-            _loc = LocatePreset(image=screenshot(region=region), v_comp=v_list[level], distort=d_list[depth], conf=0.8, wait=False)
-            # cv2.imwrite(f"data/move/region{depth}{level}_{time.time()}.png", screenshot(region=region))
+            image = screenshot(region=region)
+            _loc = LocatePreset(image=image, v_comp=v_list[level], distort=d_list[depth], conf=0.8, wait=False)
+            # cv2.imwrite(f"data/move_debug/region{depth}{level}_{time.time()}.png", image)
 
             if now_rgb.button("coin", region, conf=0.9):
                 if now_rgb.button("gift", region, conf=0.9):
