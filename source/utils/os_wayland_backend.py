@@ -61,10 +61,24 @@ def get_screen_size():
     return wl.get_screen_size()
 
 def get_position():
-    """Return (x, y) cursor position relative to root (via XWayland)."""
+    """Return (x, y) cursor position in the compositor's logical coordinates."""
     _, root = _get_x_display()
     pointer = root.query_pointer()
-    return int(pointer.root_x), int(pointer.root_y)
+    px, py = int(pointer.root_x), int(pointer.root_y)
+
+    try:
+        min_x, min_y, max_x, max_y = wl.get_virtual_screen_bounds()
+        geom = root.get_geometry()
+        x_w, x_h = int(geom.width), int(geom.height)
+        log_w, log_h = max_x - min_x, max_y - min_y
+        if x_w > 0 and x_h > 0 and log_w > 0 and log_h > 0 and (x_w, x_h) != (log_w, log_h):
+            return (
+                min_x + int(round(px * log_w / x_w)),
+                min_y + int(round(py * log_h / x_h)),
+            )
+    except Exception:
+        pass
+    return px, py
 
 def getActiveWindowTitle():
     """Return active window title, or empty string if none."""
@@ -620,6 +634,7 @@ def moveTo(x, y, duration=0, delay=0.0, tsize=(3.0, 3.0), offset_x=0, offset_y=0
 
     duration_override = duration if duration and duration > 0 else None
 
+    attempts = 0
     while True:
         traj = build_trajectory(
             (start_x, start_y),
@@ -641,6 +656,19 @@ def moveTo(x, y, duration=0, delay=0.0, tsize=(3.0, 3.0), offset_x=0, offset_y=0
         if not np.any(np.abs(raw_delta) > 15.0) or \
            _within_target((start_x, start_y), (end_x, end_y), tsize):
             break
+
+        # A healthy correction loop converges in 1-2 passes. Repeated misses mean the
+        # position feedback cannot reach the target (e.g. XWayland not tracking the
+        # cursor over native Wayland surfaces) - fail loudly instead of shoving the
+        # cursor into a screen corner forever.
+        attempts += 1
+        if attempts >= 5:
+            release_all()
+            raise FailSafeException(
+                f"Mouse cannot reach ({end_x}, {end_y}); pointer reads ({start_x}, {start_y}) "
+                f"after {attempts} correction passes. Cursor position feedback appears broken "
+                "(XWayland pointer tracking / display scaling mismatch)."
+            )
 
         update_pointer_scale(raw_delta, raw_path[0], (start_x, start_y))
         _fail_safe_check()
