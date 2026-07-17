@@ -259,7 +259,7 @@ def clone_device(path: str) -> UInput:
     caps = real.capabilities()
 
     if e.EV_KEY in caps:
-        caps[e.EV_KEY] = list(set(caps[e.EV_KEY] + _safe_keys))
+        caps[e.EV_KEY] = sorted(set(caps[e.EV_KEY]) | set(_safe_keys))
     else:
         caps[e.EV_KEY] = _safe_keys
 
@@ -268,8 +268,11 @@ def clone_device(path: str) -> UInput:
     elif e.MSC_SCAN not in caps[e.EV_MSC]:
         caps[e.EV_MSC].append(e.MSC_SCAN)
 
-    if e.EV_REP not in caps:
-        caps[e.EV_REP] = [e.REP_DELAY, e.REP_PERIOD]
+    events = {
+        ev_type: codes
+        for ev_type, codes in caps.items()
+        if ev_type not in (e.EV_SYN, e.EV_FF, e.EV_REP)
+    }
 
     kwargs = {
         "name": real.name,
@@ -280,8 +283,7 @@ def clone_device(path: str) -> UInput:
         "phys": real.phys if real.phys else "usb-0000:00:14.0-1/input0",
         "input_props": real.input_props(),
     }
-    # raise Exception
-    device = UInput.from_device(real, filtered_types=(e.EV_SYN, e.EV_FF, e.EV_REP), **kwargs)
+    device = UInput(events=events, **kwargs)
     _print_device_data(kwargs)
     return device
 
