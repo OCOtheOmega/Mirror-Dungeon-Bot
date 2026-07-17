@@ -520,7 +520,7 @@ def fuse():
     got_all = False
     advanced_fusing = fuse_search(have)
 
-    if p.EXTREME: coords_agg = coords
+    if p.EXTREME or p.HOS_MODE: coords_agg = coords
 
     # get powerful ego gift
     for i in range(len(p.GIFTS)):
