@@ -657,12 +657,8 @@ def moveTo(x, y, duration=0, delay=0.0, tsize=(3.0, 3.0), offset_x=0, offset_y=0
            _within_target((start_x, start_y), (end_x, end_y), tsize):
             break
 
-        # A healthy correction loop converges in 1-2 passes. Repeated misses mean the
-        # position feedback cannot reach the target (e.g. XWayland not tracking the
-        # cursor over native Wayland surfaces) - fail loudly instead of shoving the
-        # cursor into a screen corner forever.
         attempts += 1
-        if attempts >= 5:
+        if attempts >= 100:
             release_all()
             raise FailSafeException(
                 f"Mouse cannot reach ({end_x}, {end_y}); pointer reads ({start_x}, {start_y}) "
@@ -670,7 +666,7 @@ def moveTo(x, y, duration=0, delay=0.0, tsize=(3.0, 3.0), offset_x=0, offset_y=0
                 "(XWayland pointer tracking / display scaling mismatch)."
             )
 
-        update_pointer_scale(raw_delta, raw_path[0], (start_x, start_y))
+        update_pointer_scale(raw_delta, raw_path[0], (start_x, start_y))        
         _fail_safe_check()
 
     update_inertia(raw_path, times)

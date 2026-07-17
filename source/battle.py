@@ -2,7 +2,6 @@ from source.utils.utils import *
 from source.event import event
 import source.utils.params as p
 from itertools import product
-import math as m
 
 
 exit_if = ["loading", "Move", "EGObin", "encounterreward", "victory", "defeat", "PackChoice"]
@@ -390,8 +389,8 @@ def fight(lux=False):
     defence_turns = 0
     max_defense = 0
     if p.HOS_MODE and len(p.SELECTED) - p.DEAD != 1:
-        max_defense = min(m.ceil((len(p.SELECTED) - p.DEAD) / 2), 5)
-    
+        max_defense = min(((len(p.SELECTED) - p.DEAD + int(p.DEAD == 0)) // 2), 5)
+
     while True:
         ck = False
         if loc.button("winrate", wait=1):
