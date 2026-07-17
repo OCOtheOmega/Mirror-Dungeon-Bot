@@ -412,6 +412,8 @@ def search_have(have, fuse_type, idx):
 
 def fuse_search(have):
     advanced_fusing = []
+    if p.HOS_MODE: return []
+
     if p.GIFTS[0]["sin"] and not p.GIFTS[0]["goal"][0] in have.keys():
         advanced_fusing.append((0, search_have(have, 1, 0), 1))
     if p.HARD and p.GIFTS[0]["sin"] and not p.GIFTS[0]["goal"][1] in have.keys():
@@ -477,7 +479,7 @@ def handle_available_fusion():
         browse_fast(hook_x, up=True)
         time.sleep(0.5)
 
-    if not now_rgb.button("fusion_available"):
+    if not now_rgb.button("fusion_available") or p.HOS_MODE:
         return now_rgb.button("scroll", "scroll_full")
 
     gift_list = get_fuse_list()
@@ -537,7 +539,7 @@ def fuse():
         got_all = True
 
     # get recipe ego gifts
-    if advanced_fusing and not p.HOS_MODE:
+    if advanced_fusing:
         i, _, fuse_type = advanced_fusing[0]
         set_affinity(i)
     elif got_all:
