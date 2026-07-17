@@ -145,10 +145,10 @@ def click_bonus():
 def bonus_gone():
     if p.HARD:
         if not loc_rgb.button("bonus", "hardbonus", wait=1):
-            return now_rgb.button("bonus_off", "hardbonus", conf=0.8)
+            return now_rgb.button("bonus_off", "hardbonus", conf=0.7)
         else: return False
     elif not loc_rgb.button("bonus", wait=1):
-        return now_rgb.button("bonus_off", conf=0.8)
+        return now_rgb.button("bonus_off", conf=0.7)
     else: return False
 
 def handle_bonus():
