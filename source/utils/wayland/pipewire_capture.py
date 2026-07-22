@@ -64,25 +64,9 @@ class _Frame:
     timestamp: float
 
 
-def _trim_window_padding(image: Any) -> Any:
-    """Trim the black padding Mutter window casts add around the window at buffer origin."""
-    import numpy as np
-
-    h, w = image.shape[:2]
-    # Fast path: content reaching the last row AND column means there is no right/bottom
-    # padding to trim, so skip the full-frame scan (the common case outside Mutter).
-    if image[-1].any() and image[:, -1].any():
-        return image
-    nonzero = np.any(image, axis=2)
-    cols = np.where(np.any(nonzero, axis=0))[0]
-    rows = np.where(np.any(nonzero, axis=1))[0]
-    if cols.size == 0 or rows.size == 0:
-        return image
-    right = int(cols.max()) + 1
-    bottom = int(rows.max()) + 1
-    if right >= w and bottom >= h:
-        return image
-    return image[:bottom, :right]
+def _trim_to_frame(image: Any, frame_rect: tuple[int, int, int, int]) -> Any:
+    fw, fh = int(frame_rect[2]), int(frame_rect[3])
+    return image[:fh, :fw]
 
 
 def _crop_client(image: Any, frame_rect, client_rect, override_insets=None) -> Any:
@@ -576,10 +560,11 @@ class _GstPipeWireStream:
                         frame_rect = self.owner._target_frame
 
                     if target is not None:
-                        image = _trim_window_padding(image)
+                        rect = frame_rect or target
+                        image = _trim_to_frame(image, rect)
                         image = _crop_client(
                             image,
-                            frame_rect or target,
+                            rect,
                             target,
                             self.owner._window_crop_insets,
                         )

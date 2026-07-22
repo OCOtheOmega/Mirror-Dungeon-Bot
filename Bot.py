@@ -327,9 +327,11 @@ def main_loop():
 
                 if last_error != 0:
                     if time.time() - last_error > 30:
+                        # cv2.imwrite(f"error_{int(time.time())}.png", screenshot())
                         handle_fuckup()
                         error += 1
                 else:
+                    # cv2.imwrite(f"error_{int(time.time())}.png", screenshot())
                     last_error = time.time()
         else:
             last_error = 0
