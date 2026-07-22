@@ -37,6 +37,7 @@ SCREEN = None
 
 pause_event = threading.Event()
 stop_event = threading.Event()
+STOP_REASON = None
 
 LVL = 1
 SUPER = "shop" # for Hard MD

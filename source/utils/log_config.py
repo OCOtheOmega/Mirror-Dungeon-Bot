@@ -2,6 +2,10 @@ import logging, sys, os
 
 from source.utils.discord_webhook import create_handler_from_env
 
+
+_EXCEPTHOOK_INSTALLED = False
+_ORIGINAL_EXCEPTHOOK = None
+
 def _is_onefile_temp_path(path: str) -> bool:
     normalized = os.path.normcase(os.path.abspath(path))
     return "\\appdata\\local\\temp\\onefil" in normalized
@@ -47,6 +51,25 @@ def _attach_webhook_handler():
 
     return False
 
+
+def _install_excepthook():
+    global _EXCEPTHOOK_INSTALLED, _ORIGINAL_EXCEPTHOOK
+    if _EXCEPTHOOK_INSTALLED:
+        return
+
+    _ORIGINAL_EXCEPTHOOK = sys.excepthook
+
+    def log_uncaught_exceptions(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        logging.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+        _ORIGINAL_EXCEPTHOOK(exc_type, exc_value, exc_traceback)
+
+    sys.excepthook = log_uncaught_exceptions
+    _EXCEPTHOOK_INSTALLED = True
+
 def setup_logging(enable_logging: bool = True, log_file: str = "game.log", log_level=logging.INFO):
     if enable_logging:
         base_path = _runtime_base_path()
@@ -68,14 +91,4 @@ def setup_logging(enable_logging: bool = True, log_file: str = "game.log", log_l
 
     _attach_webhook_handler()
 
-    original_excepthook = sys.excepthook
-
-    def log_uncaught_exceptions(exc_type, exc_value, exc_traceback):
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
-            return
-
-        logging.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-        original_excepthook(exc_type, exc_value, exc_traceback)
-
-    sys.excepthook = log_uncaught_exceptions
+    _install_excepthook()

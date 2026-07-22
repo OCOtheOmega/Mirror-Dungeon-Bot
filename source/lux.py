@@ -49,9 +49,6 @@ def select_thd_level():
     win_click(x, y)
     time.sleep(0.5)
 
-    logging.info("Thread Luxcavation")
-    
-
 def start_lux():
     try:
         if now.button("Drive"):
@@ -88,14 +85,14 @@ def grind_lux(count_exp, count_thd, teams):
                 win_click(gui.center(choices[0]))
                 time.sleep(0.5)
 
-                logging.info("Exp Luxcavation")
             fight(lux=True)
 
             if now.button("victory"):
                 time.sleep(0.5)
                 gui.press("esc")
                 if loc.button("Exp"):
-                    count_exp-= 1
+                    count_exp -= 1
+                    logging.info("Exp Luxcavation")
             elif now.button("defeat"):
                 time.sleep(0.5)
                 if not p.RESTART:
@@ -128,6 +125,7 @@ def grind_lux(count_exp, count_thd, teams):
                 gui.press("esc")
                 if loc.button("Exp"):
                     count_thd -= 1
+                    logging.info("Thread Luxcavation")
             elif now.button("defeat"):
                 time.sleep(0.5)
                 if not p.RESTART:

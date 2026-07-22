@@ -470,7 +470,7 @@ def fight(lux=False):
                     wait_while_condition(lambda: not now.button("Confirm_retry", method=cv2.TM_SQDIFF_NORMED), lambda: win_click(1200, 400), interval=1, timer=3)
                     gui.press("space")
                     loading_halt()
-                    logging.info("Run stopped")
+                    logging.info("Run Aborted: Hard battle could not continue.")
                     err = StopIteration("Dante, we failed... If you want to end run here, enable 'End stuck runs'")
                     if p.ALTF4: close_limbus(error=err)
                     raise err
