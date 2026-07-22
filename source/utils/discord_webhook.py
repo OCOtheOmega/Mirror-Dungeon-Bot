@@ -73,6 +73,7 @@ _CONTEXT_DEFAULT = {
     "run_attempts": 0,
     "exp_runs_done": 0,
     "thread_runs_done": 0,
+    "active_scope": "md",
     "start_announced": False,
     "script_boot": False
 }
@@ -593,6 +594,9 @@ class WebhookLogHandler(logging.Handler):
             )
         return False
 
+    def _active_scope(self):
+        return "lux" if self.context.get("active_scope") == "lux" else "md"
+
     def _make_event(self, name, value, description=None, extra_fields=None, scope="md", lux_type=None, floor=None, pack=None):
         return {
             "name": name,
@@ -607,6 +611,7 @@ class WebhookLogHandler(logging.Handler):
 
     def _finalize_lux_run(self, lux_type):
         self.context[f"{lux_type.lower()}_runs_done"] += 1
+        self.context["active_scope"] = "lux"
         self.context["script_boot"] = False
         label = self._lux_label(lux_type)
         return self._make_event(
@@ -618,6 +623,7 @@ class WebhookLogHandler(logging.Handler):
         )
 
     def _make_lux_summary(self):
+        self.context["active_scope"] = "lux"
         return self._make_event(
             "Luxcavation Complete",
             "All selected runs completed",
@@ -637,6 +643,7 @@ class WebhookLogHandler(logging.Handler):
         )
 
     def _finalize_run(self, now, result_value, description, floor_description, completed):
+        self.context["active_scope"] = "md"
         self.last_run_duration = None if self.run_started_at is None else max(0.0, now - self.run_started_at)
         self.last_floor_duration = None if self.floor_started_at is None else max(0.0, now - self.floor_started_at)
         current_floor = self.context["floor"]
@@ -719,6 +726,7 @@ class WebhookLogHandler(logging.Handler):
         self.last_run_duration = None
         self.context["floor"] = None
         self.context["pack"] = None
+        self.context["active_scope"] = "md"
         self.context["start_announced"] = True
         self.context["script_boot"] = False
         return self._make_event(
@@ -789,6 +797,7 @@ class WebhookLogHandler(logging.Handler):
         if match:
             self.context["team"] = match.group(1)
             self.context["group"] = None
+            self.context["active_scope"] = "md"
             self.context["start_announced"] = False
             return None
 
@@ -804,6 +813,7 @@ class WebhookLogHandler(logging.Handler):
 
         match = _RE_FLOOR.match(message)
         if match:
+            self.context["active_scope"] = "md"
             floor_value = int(match.group(1))
             previous_floor = self.context["floor"]
             previous_pack = self.context["pack"]
@@ -880,14 +890,25 @@ class WebhookLogHandler(logging.Handler):
             return self._make_event(
                 "Execution",
                 message.replace("Execution ", "").capitalize(),
-                description=message
+                description=message,
+                scope=self._active_scope()
             )
 
         if message.startswith("Execution stopped: "):
-            return self._make_event("Execution", "Stopped", description=message)
+            return self._make_event(
+                "Execution",
+                "Stopped",
+                description=message,
+                scope=self._active_scope()
+            )
 
         if message in ("Server error happened", "We are stuck", "Initialization error", "Termination error"):
-            return self._make_event("Issue", message, description=message)
+            return self._make_event(
+                "Issue",
+                message,
+                description=message,
+                scope=self._active_scope()
+            )
 
         if message in ("Exp Luxcavation", "Exp Luxcavation Completed"):
             return self._finalize_lux_run("EXP")
@@ -899,10 +920,10 @@ class WebhookLogHandler(logging.Handler):
             return self._make_lux_summary()
 
         if level >= logging.ERROR:
-            return self._make_event("Error", message, description=message)
+            return self._make_event("Error", message, description=message, scope=self._active_scope())
 
         if level >= logging.WARNING:
-            return self._make_event("Warning", message, description=message)
+            return self._make_event("Warning", message, description=message, scope=self._active_scope())
 
         return None
 

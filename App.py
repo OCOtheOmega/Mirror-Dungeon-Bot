@@ -331,7 +331,7 @@ class MyApp(QWidget):
         add_label(
             "webhook_hint",
             "Webhook runs asynchronously and does not block the bot.\n"
-            "Treat the URL as a password. Compact mode shows only run start/finish updates.",
+            "Compact mode shows only run start/finish updates. For Forum/Media use Thread ID.",
             (34, 444, 582, 40),
             13,
             style="color: #bfa37e; background: transparent; border: none;",
