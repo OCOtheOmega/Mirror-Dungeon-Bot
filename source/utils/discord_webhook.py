@@ -545,10 +545,23 @@ class WebhookLogHandler(logging.Handler):
     def _lux_target_runs(self, lux_type):
         return self.exp_target_runs if lux_type == "EXP" else self.thread_target_runs
 
+    def _selected_lux_types(self):
+        return [
+            lux_type
+            for lux_type in ("EXP", "THREAD")
+            if self._lux_target_runs(lux_type) not in (None, "0")
+        ]
+
     def _lux_progress(self, lux_type):
         done = self._lux_runs_done(lux_type)
         target = self._lux_target_runs(lux_type)
         return f"{done}/{target}" if target is not None else str(done)
+
+    def _lux_remaining(self, lux_type):
+        target = self._lux_target_runs(lux_type)
+        if target in (None, "0"):
+            return None
+        return str(max(0, int(target) - self._lux_runs_done(lux_type)))
 
     def _lux_label(self, lux_type):
         return "EXP" if lux_type == "EXP" else "Thread"
@@ -620,6 +633,16 @@ class WebhookLogHandler(logging.Handler):
             description=f"{label} Luxcavation run completed.",
             scope="lux",
             lux_type=lux_type
+        )
+
+    def _make_lux_start(self):
+        self.context["active_scope"] = "lux"
+        self.context["script_boot"] = False
+        return self._make_event(
+            "Luxcavation Start",
+            "Started",
+            description="Luxcavation queue started.",
+            scope="lux"
         )
 
     def _make_lux_summary(self):
@@ -916,6 +939,9 @@ class WebhookLogHandler(logging.Handler):
         if message in ("Thread Luxcavation", "Thread Luxcavation Completed"):
             return self._finalize_lux_run("THREAD")
 
+        if message == "Luxcavation started":
+            return self._make_lux_start()
+
         if message == "Done with Luxcavation!":
             return self._make_lux_summary()
 
@@ -986,12 +1012,23 @@ class WebhookLogHandler(logging.Handler):
         fields = []
         if scope == "lux":
             self._add_field(fields, "Status", event_value)
-            if lux_type:
+            if event_name == "Luxcavation Start":
+                for selected_type in self._selected_lux_types():
+                    self._add_field(
+                        fields,
+                        f"{self._lux_label(selected_type)} Runs Remaining",
+                        self._lux_remaining(selected_type)
+                    )
+            elif lux_type:
                 self._add_field(fields, "Luxcavation", self._lux_label(lux_type))
                 self._add_field(fields, "Runs Done/Total", self._lux_progress(lux_type))
             else:
-                self._add_field(fields, "EXP Runs Done/Total", self._lux_progress("EXP"))
-                self._add_field(fields, "Thread Runs Done/Total", self._lux_progress("THREAD"))
+                for selected_type in self._selected_lux_types():
+                    self._add_field(
+                        fields,
+                        f"{self._lux_label(selected_type)} Runs Done/Total",
+                        self._lux_progress(selected_type)
+                    )
         else:
             if event_name == "Run":
                 self._add_field(fields, "Status", event_value)
