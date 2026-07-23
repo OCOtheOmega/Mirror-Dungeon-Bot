@@ -1,9 +1,10 @@
-import json, os, threading
+import json, logging, os, threading
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from source_app.utils import *
+from source.utils.discord_webhook import validate_snowflake, validate_webhook_url
 from source_app.settings_manager import SettingsManager
 from source_app.widget import SelectizeWidget, IntField, AllIntField
 from source_app.button import CustomButton
@@ -128,7 +129,7 @@ class MyApp(QWidget):
         self.pause.hide()
         self.stop = QPushButton(self.pause)
         self.stop.setGeometry(358, 382, 73, 69)
-        self.stop.clicked.connect(self.stop_execution)
+        self.stop.clicked.connect(self.stop_by_user)
         self.stop.setStyleSheet('background: transparent; border: none;')
         self.play = QPushButton(self.pause)
         self.play.setGeometry(268, 382, 73, 69)
@@ -308,6 +309,11 @@ class MyApp(QWidget):
         )
         add_label("webhook_lbl_url", "Webhook URL", (34, 138, 300, 28), 18)
         add_field("webhook_url", (34, 168, 582, 38), "https://discord.com/api/webhooks/...")
+        self.webhook_url.setEchoMode(QLineEdit.EchoMode.Password)
+        self.webhook_reveal = add_button(
+            "webhook_reveal", "Show URL", self.webhook_panel, (448, 136, 168, 28), 13,
+            self._toggle_webhook_url_visibility, checkable=True
+        )
         add_label("webhook_lbl_thread", "Thread ID (optional)", (34, 224, 300, 28), 18)
         add_field("webhook_thread", (34, 254, 582, 38), "123456789012345678", digit_validator)
 
@@ -1007,6 +1013,11 @@ class MyApp(QWidget):
         ):
             self._set_webhook_toggle_text(button, name)
 
+    def _toggle_webhook_url_visibility(self):
+        visible = self.webhook_reveal.isChecked()
+        self.webhook_url.setEchoMode(QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
+        self.webhook_reveal.setText("Hide URL" if visible else "Show URL")
+
     def get_webhook_ui(self):
         data = {}
         for key, widget in (
@@ -1033,13 +1044,13 @@ class MyApp(QWidget):
             return False
 
         checks = [
-            ("/api/webhooks/" not in data["url"], "Discord webhook URL looks invalid."),
-            (data["thread_id"] and not data["thread_id"].isdigit(), "Thread ID must contain only digits."),
-            (data["ping_role_id"] and not data["ping_role_id"].isdigit(), "Ping Role ID must contain only digits."),
-            (data["ping_on_finish"] and not data["ping_role_id"], "Ping is enabled, but Role ID is empty.")
+            validate_webhook_url(data["url"]),
+            validate_snowflake(data["thread_id"], "Thread ID"),
+            validate_snowflake(data["ping_role_id"], "Ping Role ID"),
+            "Ping is enabled, but Role ID is empty." if data["ping_on_finish"] and not data["ping_role_id"] else None
         ]
-        for failed, message in checks:
-            if failed:
+        for message in checks:
+            if message:
                 if show_message:
                     self.show_error(message)
                 return False
@@ -1062,6 +1073,8 @@ class MyApp(QWidget):
         env_values = {
             "CGRINDER_DISCORD_WEBHOOK_URL": self.webhook_settings["url"],
             "CGRINDER_DISCORD_TOTAL_RUNS": run_target,
+            "CGRINDER_DISCORD_EXP_TOTAL_RUNS": str(max(0, self.count_exp)),
+            "CGRINDER_DISCORD_THREAD_TOTAL_RUNS": str(max(0, self.count_thd)),
             "CGRINDER_DISCORD_COMPACT_MODE": "1" if self.webhook_settings["compact_mode"] else "0",
             "CGRINDER_DISCORD_PING_ON_FINISH": "1" if self.webhook_settings["ping_on_finish"] else "0",
             "CGRINDER_DISCORD_THREAD_ID": self.webhook_settings["thread_id"],
@@ -1765,6 +1778,7 @@ class MyApp(QWidget):
         QApplication.processEvents()
 
         p.stop_event.clear()
+        p.STOP_REASON = None
 
         self.thread = QThread()
         self.worker = BotWorker(
@@ -1809,8 +1823,16 @@ class MyApp(QWidget):
         p.pause_event.set()
 
     @pyqtSlot()
+    def stop_by_user(self):
+        p.STOP_REASON = "Cancelled by user"
+        self.stop_execution()
+
+    @pyqtSlot()
     def stop_execution(self):
         print("Stopping execution...")
+        if p.STOP_REASON:
+            logging.info(f"Execution stopped: {p.STOP_REASON}")
+            p.STOP_REASON = None
         p.stop_event.set()
         p.pause_event.set()
 

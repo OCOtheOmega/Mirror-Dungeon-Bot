@@ -186,7 +186,10 @@ def dungeon_end():
                 if now.button(key):
                     i = end_locations[key]
                     break
-            else: break
+            else:
+                completed = now.button("Drive")
+                if completed: print("MD Finished!")
+                return completed
             try:
                 chain_actions(try_click, TERMIN[i:])
             except RuntimeError:
@@ -196,14 +199,14 @@ def dungeon_end():
             pause(e.window)
         if now.button("out_of_fuel"):
             logging.error("We are out of enkephalin!")
+            p.STOP_REASON = "Out of enkephalin"
             if p.ALTF4: close_limbus()
             if p.APP: QMetaObject.invokeMethod(p.APP, "stop_execution", Qt.ConnectionType.QueuedConnection)
             raise StopExecution
         if failed > 5:
             print("Termination error")
             logging.error("Termination error")
-            break
-    print("MD Finished!")
+            return False
 
 # FAIL RUN
 FAIL = [
@@ -232,7 +235,10 @@ def dungeon_fail():
                 if now.button(key):
                     i = fail_locations[key]
                     break
-            else: break
+            else:
+                finished = now.button("Drive")
+                if finished: print("MD Failed!")
+                return finished
             try:
                 chain_actions(try_click, FAIL[i:])
             except RuntimeError:
@@ -243,8 +249,7 @@ def dungeon_fail():
         if failed > 5:
             print("Termination error")
             logging.error("Termination error")
-            break
-    print("MD Failed!")
+            return False
 
 
 # MAIN LOOP
@@ -282,13 +287,14 @@ def main_loop():
             connection()
 
         if now.button("victory"):
-            logging.info('Run Completed')
-            dungeon_end()
-            return True
+            if dungeon_end():
+                logging.info('Run Completed')
+                return True
+            return False
 
         if now.button("defeat"):
-            logging.info('Run Failed')
-            dungeon_fail()
+            if dungeon_fail():
+                logging.info('Run Failed')
             return False
 
         try:
@@ -321,9 +327,10 @@ def main_loop():
                 # check if end
                 for key in end_locations.keys():
                     if now.button(key):
-                        logging.info('Run Completed')
-                        dungeon_end()
-                        return True
+                        if dungeon_end():
+                            logging.info('Run Completed')
+                            return True
+                        return False
 
                 if last_error != 0:
                     if time.time() - last_error > 30:
@@ -338,6 +345,7 @@ def main_loop():
 
         if error > 20:
             logging.error('We are stuck')
+            p.STOP_REASON = "Bot stuck"
             if p.ALTF4: close_limbus()
             if p.APP: QMetaObject.invokeMethod(p.APP, "stop_execution", Qt.ConnectionType.QueuedConnection)
             raise StopExecution # change maybe
