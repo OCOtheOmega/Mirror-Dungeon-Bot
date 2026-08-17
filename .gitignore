@@ -11,3 +11,5 @@ game.csv
 input_api
 benchmark.json
 test.py
+tst.py
+benchmark_cards.json

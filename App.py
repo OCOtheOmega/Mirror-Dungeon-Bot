@@ -10,6 +10,7 @@ from source_app.widget import SelectizeWidget, IntField, AllIntField
 from source_app.button import CustomButton
 from source_app.run import VersionChecker, BotWorker
 from source_app.check_interception import check_windows
+from source_app.check_linux_backend import check_linux
 
 class MyApp(QWidget):
     webhook_test_result = pyqtSignal(bool, str)
@@ -19,6 +20,9 @@ class MyApp(QWidget):
         super().__init__()
 
         if not check_windows(app_parent=self):
+            raise SystemExit(0)
+
+        if not check_linux(app_parent=self):
             raise SystemExit(0)
 
         # params

@@ -636,7 +636,8 @@ class PipeWireCapture:
 
         self.Gst = Gst
         self.GstVideo = GstVideo
-        Gst.init(None)
+        # PyGObject < 3.52 rejects None for the inout argv array; [] means the same thing.
+        Gst.init([])
         atexit.register(self.close)
 
     @staticmethod

@@ -523,22 +523,25 @@ class SIFTMatcher:
             return None
         n_kp = len(kp1)
         good = self._bf.match(des1, des_base)
-        if not good:
+        if len(good) < 4:
             return None
 
         src = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
         dst = np.float32([kp_base[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-        M, mask = cv2.findHomography(src, dst, cv2.RANSAC, maxIters=300, ransacReprojThreshold=5.0)
-        if M is None or mask is None:
+
+        A, mask = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=5.0, maxIters=300)
+        if A is None or mask is None:
             return None
+
+        M = np.vstack([A, [0.0, 0.0, 1.0]]).astype(np.float64)
 
         n_inliers = int(mask.sum())
         if n_inliers < inlier_ratio * len(good):
             return None
-        
+
         return M, mask, good, n_kp
     
-    def _locate(self, template, inlier_ratio=0.2, color_threshold=0.8):
+    def _locate(self, template, inlier_ratio=0.2, color_threshold=0.9):
         tpl_color, tpl_gray = self._prepare_template(self._load_color(template))
 
         kp1, des1 = self.sift.detectAndCompute(tpl_gray, None)

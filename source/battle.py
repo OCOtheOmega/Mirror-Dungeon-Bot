@@ -215,9 +215,9 @@ def select_team():
     if not p.DUPLICATES and LocateGray.check(PTH[f"{affinity}_current"], region=REG["current_team"], conf=0.92, method=cv2.TM_SQDIFF_NORMED, wait=False):
         return
 
+    win_moveTo(196, 480)
     if now_rgb.button("arrow", conf=0.7):
-        win_moveTo(191, 472)
-        win_dragTo(289, 984)
+        gui.scroll(21)
         time.sleep(1)
 
     for i in range(4):
@@ -226,16 +226,11 @@ def select_team():
         sorted(coords, key=lambda coord: coord[1])
 
         if len(coords) > idx:
-            if i != 0 and i != 3: gui.mouseUp()
             win_click(coords[idx])
             break
         elif i != 3:
             idx -= len(coords)
-            if i != 0: gui.mouseUp()
-            win_moveTo(196, 670)
-            gui.mouseDown()
-            win_moveTo(193, 400)
-            if i == 2: gui.mouseUp()
+            gui.scroll(-10)
             time.sleep(0.3)
     else:
         logging.info("Team selecton failed!")
@@ -405,6 +400,7 @@ def fight(lux=False):
                     # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
                     if lux or p.WINRATE: raise gui.ImageNotFoundException
                     background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
+                    # cv2.imwrite(f"data/battle_state/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100 - 55), 775, round(gear_end[0] - gear_start[0] - 200 + 125), 305)))
                     chain(gear_start, gear_end, background)
 
                 else:
@@ -412,6 +408,7 @@ def fight(lux=False):
                         print(f"use defense!!!")
                         gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
+                        # cv2.imwrite(f"data/battle_state/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100 - 55), 775, round(gear_end[0] - gear_start[0] - 200 + 125), 305)))
                         defense_skill(gear_start, gear_end)
                         is_focused = False
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
@@ -424,6 +421,7 @@ def fight(lux=False):
                         is_focused = False
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
                         background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
+                        # cv2.imwrite(f"data/battle_state/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100 - 55), 775, round(gear_end[0] - gear_start[0] - 200 + 125), 305)))
                         chain(gear_start, gear_end, background)
 
                 # success check
