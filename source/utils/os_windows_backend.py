@@ -15,6 +15,11 @@ from source.utils.movement.pointer_gain import update_pointer_scale, execute_tra
 
 from source.utils.bridge.bridge import Bridge
 
+try:
+    ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+except Exception:
+    pass
+
 
 _bridge = None
 _bridge_lock = threading.RLock()
