@@ -82,7 +82,7 @@ REG = {
     "infinite_off"   : (1690,  500,   45,   30),
     "out_of_fuel"    : ( 750,  150,  424,   66),
     # regions not binded to an image
-    "money!"         : (1526,   52,   80,   30),
+    "money!"         : (1490,   45,   80,   40),
     "gifts!"         : (1173,  324,  129,  125),
     "selected!"      : (1682,  855,   30,   42),
 
