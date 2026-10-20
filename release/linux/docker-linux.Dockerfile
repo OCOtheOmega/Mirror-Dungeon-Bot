@@ -23,7 +23,7 @@ WORKDIR /build
 COPY requirements_linux.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements_linux.txt && \
-    pip install nuitka
+    pip install nuitka==4.2.1
 
 COPY . .
 
