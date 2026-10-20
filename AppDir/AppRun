@@ -1,0 +1,41 @@
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+
+# OpenSSL
+if [ -z "$SSL_CERT_FILE" ] && [ -z "$SSL_CERT_DIR" ]; then
+  for f in /etc/pki/tls/cert.pem /etc/ssl/certs/ca-certificates.crt \
+           /etc/ssl/cert.pem /etc/pki/tls/certs/ca-bundle.crt \
+           /var/lib/ca-certificates/ca-bundle.pem; do
+    [ -r "$f" ] && export SSL_CERT_FILE="$f" && break
+  done
+  for d in /etc/pki/tls/certs /etc/ssl/certs; do
+    [ -d "$d" ] && export SSL_CERT_DIR="$d" && break
+  done
+fi
+
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+export QT_XCB_NO_XI2=1
+export QT_XKB_CONFIG_ROOT="${QT_XKB_CONFIG_ROOT:-/usr/share/X11/xkb}"
+export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
+
+# Wayland backend: bundled GObject introspection + GStreamer/PipeWire capture
+# LD_LIBRARY_PATH is deliberately left alone: the bundled libraries are found via
+# RPATH, so host subprocesses (qdbus, gnome-extensions) keep their own libraries.
+#
+# GI_TYPELIB_PATH is deliberately NOT set: Nuitka's gi plugin points it at the bundled
+# girepository dir at startup, but only when it is unset.
+
+# point GStreamer at the bundled plugins
+export GST_PLUGIN_SYSTEM_PATH_1_0="$HERE/usr/bin/gstreamer-1.0"
+export GST_PLUGIN_SYSTEM_PATH="$HERE/usr/bin/gstreamer-1.0"
+export GST_PLUGIN_PATH_1_0="$HERE/usr/bin/gstreamer-1.0"
+export GST_PLUGIN_PATH="$HERE/usr/bin/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$HERE/usr/bin/gstreamer-1.0/gst-plugin-scanner"
+
+# keep a private registry cache.
+GST_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cgrinder"
+mkdir -p "$GST_CACHE_DIR" 2>/dev/null || true
+export GST_REGISTRY_1_0="$GST_CACHE_DIR/gst-registry.bin"
+export GST_REGISTRY="$GST_CACHE_DIR/gst-registry.bin"
+
+exec "$HERE/usr/bin/app" "$@"
