@@ -15,7 +15,7 @@ class VersionChecker(QObject):
         self.manager.finished.connect(self._on_finished)
 
     def check(self):
-        req = QNetworkRequest(QUrl("https://api.github.com/repos/OCOtheOmega/Mirror-Dungeon-Bot/releases/latest"))
+        req = QNetworkRequest(QUrl("https://api.github.com/repos/OCOtheOmega/Mirror-Dungeon-Bot/releases?per_page=1"))
         req.setRawHeader(b"User-Agent", b"MirrorDungeonBot-VersionChecker/1.0")
         req.setRawHeader(b"Accept", b"application/vnd.github.v3+json")
         req.setTransferTimeout(10000)
@@ -34,7 +34,8 @@ class VersionChecker(QObject):
         data = bytes(reply.readAll()).decode('utf-8')
         try:
             j = json.loads(data)
-            tag = j.get("tag_name", "").lstrip("vV")
+            release = j[0] if isinstance(j, list) and j else j
+            tag = release.get("tag_name", "").lstrip("vV").split("-", 1)[0]
             is_up_to_date = self._compare_versions(tag, APP_VERSION)
         except Exception as e:
             print("Parse error:", e)

@@ -16,6 +16,7 @@ This is an independent fork based on upstream 3.5.5, not an upstream release.
 - Each new run resets death/setup state and copies gift targets.
 - Pack priority order and floor 6–15 assignments survive settings reload.
 - Wishmaking no longer mutates shared fusion recipe lists.
+- Onefile asset lookup prefers the extracted bundle instead of the outer executable folder.
 - Failed Arayashu runs are limited per batch instead of retried indefinitely.
 
 ## Setup

@@ -2,12 +2,14 @@ import os, sys, platform
 
 
 def _runtime_base_path():
-    # For compiled binaries, keep asset lookup relative to the executable folder.
+    # Nuitka onefile extracts included data beside the module's __file__.
+    # Prefer that layout; retain the executable-relative fallback for older builds.
+    module_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    if os.path.isdir(os.path.join(module_root, "ImageAssets", "UI")):
+        return module_root
     if "__compiled__" in globals():
-        exe_path = os.path.abspath(sys.executable)
-        return os.path.dirname(exe_path)
-
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return module_root
 
 
 BASE_PATH = _runtime_base_path()

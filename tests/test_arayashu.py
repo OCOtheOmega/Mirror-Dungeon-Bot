@@ -2,6 +2,8 @@
 import ast
 import copy
 import logging
+import os
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -267,6 +269,12 @@ class GiftSafetyTests(unittest.TestCase):
         self.assertEqual(combos, before)
 
 class SettingsTests(unittest.TestCase):
+    def test_fork_version_comparison_uses_numeric_core(self):
+        compare, _ = function("source_app/run.py", "_compare_versions", owner="VersionChecker")
+        self.assertTrue(compare(None, "3.5.6", "3.5.6"))
+        self.assertTrue(compare(None, "3.5.5", "3.5.6"))
+        self.assertFalse(compare(None, "3.5.7", "3.5.6"))
+
     def test_priority_order_and_extreme_floor_assignments_survive_reload(self):
         packs = literal("source/utils/paths.py", "PACKS")
         wordless = literal("source/utils/paths.py", "WORDLESS")
@@ -338,6 +346,68 @@ class SettingsTests(unittest.TestCase):
         p.BUFF[3]=1
         set_team(0,teams,{})
         self.assertEqual(p.GIFTS[0]["uptie1"],before["uptie1"])
+
+
+class BatchLimitTests(unittest.TestCase):
+    def execute_context(self, results, hos=True):
+        from itertools import cycle
+        class StopExecution(Exception):
+            pass
+        p = SimpleNamespace()
+        main_loop = Mock(side_effect=results)
+        execute, _ = function("Bot.py", "execute_me", {
+            "p":p, "normalize_solo_options":normalize_solo_options,
+            "SoloSetupError":SoloSetupError, "StopExecution":StopExecution,
+            "gui":SimpleNamespace(set_window=Mock()), "countdown":Mock(),
+            "logging":logging, "cycle":cycle, "set_team":Mock(),
+            "main_loop":main_loop,
+            "QMetaObject":SimpleNamespace(invokeMethod=Mock()),
+            "Qt":SimpleNamespace(ConnectionType=SimpleNamespace(QueuedConnection=0)),
+        })
+        settings = {
+            "bonus":False,"collect":False,"restart":True,"altf4":[False,False],
+            "enkephalin":False,"skip":True,"buff":[0]*10,"card":[3,1,2,0,4],
+            "wishmaking":False,"winrate":False,"hos_mode":hos,"infinity":True,
+            "keywordless":{},"solo_options":{"max_failed_runs":2,"adversities":"all"},
+        }
+        return execute, settings, main_loop
+
+    def test_hos_retry_budget_is_finite_across_the_batch(self):
+        execute, settings, main_loop = self.execute_context([False, True, False])
+        with self.assertRaisesRegex(SoloSetupError, "2 failed runs"):
+            execute(8,0,0,{0:{}},settings,True,None,Mock())
+        self.assertEqual(main_loop.call_count,3)
+
+    def test_ordinary_md_retry_behavior_is_unchanged(self):
+        execute, settings, main_loop = self.execute_context([False,False,True],hos=False)
+        execute(1,0,0,{0:{}},settings,True,None,Mock())
+        self.assertEqual(main_loop.call_count,3)
+
+class RuntimePathTests(unittest.TestCase):
+    def test_onefile_prefers_extracted_assets_to_the_outer_executable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            bundle = root / "cache"
+            outer = root / "downloads"
+            (bundle / "ImageAssets" / "UI").mkdir(parents=True)
+            resolve, _ = function("source/utils/paths.py", "_runtime_base_path", {
+                "os": os, "sys": SimpleNamespace(executable=str(outer / "app.exe")),
+                "__file__": str(bundle / "source" / "utils" / "paths.py"),
+                "__compiled__": True,
+            })
+            self.assertEqual(Path(resolve()), bundle)
+
+    def test_legacy_compiled_layout_keeps_executable_relative_fallback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outer = root / "downloads"
+            resolve, _ = function("source/utils/paths.py", "_runtime_base_path", {
+                "os": os, "sys": SimpleNamespace(executable=str(outer / "app.exe")),
+                "__file__": str(root / "missing" / "source" / "utils" / "paths.py"),
+                "__compiled__": True,
+            })
+            self.assertEqual(Path(resolve()), outer)
+
 
 if __name__ == "__main__":
     unittest.main()

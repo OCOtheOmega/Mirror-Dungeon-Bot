@@ -394,6 +394,7 @@ class MyApp(QWidget):
             "max_failed_runs": failures.value(),
         })
         self.apply_solo_profile(profile.currentData())
+        self.save()
         self.save_config()
         self.save_affinity()
         self.show_info(
@@ -434,6 +435,7 @@ class MyApp(QWidget):
         self.inputField.setText("1")
         self.count = 1
         self.buttons["log"].setChecked(True)
+        self.buttons["log"].setIcon(QIcon(Bot.APP_PTH["log_on"]))
 
     def set_priority(self, team=None):
         if team is None:
@@ -808,7 +810,7 @@ class MyApp(QWidget):
         self.buttons = {
             'update': CustomButton(self, {
                 'geometry': (202, 24, 298, 53),
-                'click_handler': lambda: webbrowser.open('https://github.com/OCOtheOmega/Mirror-Dungeon-Bot/releases/latest'),
+                'click_handler': lambda: webbrowser.open('https://github.com/OCOtheOmega/Mirror-Dungeon-Bot/releases'),
                 'checkable': True,
                 'checked': True,
                 'icon': Bot.APP_PTH['update'],
