@@ -70,6 +70,42 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(sacrifice_turn_limit(1, 0), 0)
         self.assertEqual(sacrifice_turn_limit(10, 12), 0)
 
+    def test_solo_floor_assignments_are_legal_and_independent(self):
+        packs = literal("source/utils/paths.py", "PACKS")
+        profile = solo_profile()
+        for pack, level in profile["priority_floors"].items():
+            normalized = 5 if 6 <= level <= 10 else 15 if level >= 11 else level
+            self.assertIn(pack, profile["priority"])
+            self.assertIn(normalized, packs[pack][1])
+        self.assertEqual(profile["priority_floors"]["BridleofInfinity"], 15)
+        profile["priority_floors"].clear()
+        self.assertEqual(solo_profile()["priority_floors"]["BridleofInfinity"], 15)
+
+    def test_real_pack_generation_reserves_finale_and_keeps_extreme_fallbacks(self):
+        packs = literal("source/utils/paths.py", "PACKS")
+        to_floors, _ = function("source/utils/paths.py", "packs_to_floors")
+        format_level, _ = function("source/utils/utils.py", "format_lvl")
+        ns = {"p": SimpleNamespace(HARD=True, EXTREME=True),
+              "HARD_FLOORS": to_floors(packs, hard=True), "format_lvl": format_level}
+        priority, _ = function("source/utils/utils.py", "generate_packs_pr", ns)
+        avoid, _ = function("source/utils/utils.py", "generate_packs_av", ns)
+        fallback, _ = function("source/utils/utils.py", "generate_packs_all", ns)
+        profile = solo_profile()
+        names, assigned = profile["priority"], profile["priority_floors"]
+        chosen = priority((names, assigned))
+        banned = avoid((profile["avoid"], assigned, {}))
+        fallback_choices = fallback((names, assigned))
+        for floor in range(11, 15):
+            self.assertNotIn("BridleofInfinity", chosen[f"floor{floor}"])
+            self.assertIn("BridleofInfinity", banned[f"floor{floor}"])
+            self.assertIn("CodePurple", chosen[f"floor{floor}"])
+            self.assertNotIn("CodePurple", banned[f"floor{floor}"])
+        self.assertEqual(chosen["floor15"], ["BridleofInfinity"])
+        self.assertIn("CodePurple", fallback_choices["floor15"])
+        self.assertEqual(chosen["floor4"], ["Line2"])
+        for floor in range(5, 11):
+            self.assertIn("Line1", chosen[f"floor{floor}"])
+
     def test_bad_deployment_is_rejected_before_a_paid_start(self):
         validate_solo_selection(["RYOSHU", "OUTIS"])
         for sinners in ([], ["OUTIS", "RYOSHU"], ["RYOSHU", "GREGOR"],
@@ -273,6 +309,25 @@ class GiftSafetyTests(unittest.TestCase):
         self.assertEqual(combos, before)
 
 class SettingsTests(unittest.TestCase):
+    def test_solo_apply_keeps_the_floor_numbers_for_rendering_and_saving(self):
+        buttons = {f"team{i}": Mock() for i in range(7)}
+        buttons["log"] = Mock()
+        app = SimpleNamespace(
+            hard=True, team=0, lux=Mock(), buttons=buttons,
+            selected_affinity={0:[0]}, sinner_selections={},
+            change_icon=Mock(), set_affinity_buttons=Mock(), set_selected_buttons=Mock(),
+            set_buttons_active=Mock(), activate_ego_gifts=Mock(), set_card_buttons=Mock(),
+            get_avoid=lambda:[], set_widgets=Mock(), inputField=Mock(), count=0,
+        )
+        apply, _ = function("App.py", "apply_solo_profile", {
+            "solo_profile":solo_profile, "QIcon":lambda value=None:value,
+            "Bot":SimpleNamespace(APP_PTH={"affinity":"team", "log_on":"log"}),
+        }, owner="MyApp")
+        apply(app, "deep")
+        self.assertEqual(app.priority_floors, solo_profile()["priority_floors"])
+        self.assertEqual(app.priority_floors["BridleofInfinity"], 15)
+        app.set_widgets.assert_called_once()
+
     def test_fork_version_comparison_uses_numeric_core(self):
         compare, _ = function("source_app/run.py", "_compare_versions", owner="VersionChecker")
         self.assertTrue(compare(None, "3.5.6", "3.5.6"))

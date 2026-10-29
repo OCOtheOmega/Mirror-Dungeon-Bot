@@ -24,6 +24,13 @@ SOLO_PRIORITY = [
     "HellsChicken", "HatredandDespair", "Line2", "Line1",
     "CodePurple", "SeaCR", "MidspringDream2", "CertainLibrary", "BridleofInfinity",
 ]
+SOLO_PRIORITY_FLOORS = {
+    "FlatbrokeGamblers": 1, "TheOutcast": 1, "NestWorkshopandTechnology": 1,
+    "HellsChicken": 2, "HatredandDespair": 3, "Line2": 4,
+    "BridleofInfinity": 15,
+}
+# Line1 stays flexible on 5-10. Other EXTREME choices stay flexible on 11-14,
+# so a missed CodePurple roll can still be used later. Reserve Bridle for 15.
 SOLO_AVOID_EXTRA = [
     "TheSurrenderedWitnessing", "FourHousesandGreed", "MnesticExperience",
     "Textbook", "BladeandArtwork", "TheUnsevering",
@@ -50,6 +57,7 @@ def solo_profile(name="deep"):
         "buff": list(SOLO_GRACES[name]),
         "keywordless": deepcopy(SOLO_WORDLESS),
         "priority": list(SOLO_PRIORITY),
+        "priority_floors": dict(SOLO_PRIORITY_FLOORS),
         "avoid": list(SOLO_AVOID_EXTRA),
     }
 
@@ -95,3 +103,4 @@ def guard_fusion_selection(items, protected):
     for x, y, item_page in items:
         if item_page == page and abs(x - px) < 100 and abs(y - py) < 100:
             raise SoloSetupError("Blocked a fusion selection overlapping Spiderweb Entangled in Red.")
+

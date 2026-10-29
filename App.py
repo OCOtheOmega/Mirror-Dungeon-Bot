@@ -430,7 +430,7 @@ class MyApp(QWidget):
         self.priority = profile["priority"]
         self.avoid = list(dict.fromkeys(self.get_avoid() + profile["avoid"]))
         self.avoid = [pack for pack in self.avoid if pack not in self.priority]
-        self.priority_floors = {}
+        self.priority_floors = profile["priority_floors"]
         self.avoid_floors = {}
         self.set_widgets()
         self.inputField.setText("1")
