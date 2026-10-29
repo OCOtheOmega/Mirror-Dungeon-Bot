@@ -42,7 +42,8 @@ def _cmd(output_name: str, console_mode: str):
         "--remove-output",
         "--enable-plugin=pyside6",
         "--assume-yes-for-downloads",
-        "--msvc=latest",
+        # The checked PowerShell build uses Python 3.12; Nuitka downloads MinGW64.
+        "--mingw64",
         f"--company-name={company_name}",
         f"--product-name={product_name}",
         f"--file-description={file_description}",
