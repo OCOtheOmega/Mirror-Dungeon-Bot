@@ -1,4 +1,6 @@
 import json, logging, os, threading
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QSpinBox
+from source.arayashu import normalize_solo_options, solo_profile, use_winrate
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -71,6 +73,7 @@ class MyApp(QWidget):
     ### LOAD SETTINGS FROM CONFIG FILE
     def load_settings(self):
         self.sm = SettingsManager(error_handler=self.show_error, hard=lambda: self.hard)
+        self.solo_options = normalize_solo_options(self.sm.data.get("SOLO"))
         self.sinner_selections = {i: self.sm.get_team(i) for i in range(17)}
         self.webhook_settings = self.sm.get_webhook()
 
@@ -289,6 +292,7 @@ class MyApp(QWidget):
 
         add_button("webhook_open", "Discord Webhook", self.config, (44, 82, 192, 28), 13, self.toggle_webhook_panel)
         add_button("hos_mode", "Arayashu", self.config, (244, 82, 192, 28), 13, self.update_button_icons, checkable=True)
+        add_button("solo_preset", "Solo setup", self.config, (444, 82, 208, 28), 13, self.configure_solo)
 
         self.webhook_panel = QFrame(self.config)
         self.webhook_panel.setGeometry(24, 104, 652, 560)
@@ -347,6 +351,89 @@ class MyApp(QWidget):
         add_button("webhook_save", "Save", self.webhook_panel, (247, 492, 152, 49), 17, self.save_webhook_panel)
         add_button("webhook_close", "Close", self.webhook_panel, (428, 492, 188, 49), 17, self.toggle_webhook_panel)
         self.set_webhook_ui(self.webhook_settings)
+
+    def configure_solo(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Arayashu solo setup")
+        layout = QVBoxLayout(dialog)
+        hint = QLabel(
+            "Applies one POISE/SLASH team, HoS deployment, gift protection, "
+            "card priority and Graces.\n"
+            "Set the matching Identities in the game and name the preset POISE.\n"
+            "Keep LCB Meursault and G Corp. Gregor on the support bench.\n"
+            "Automatic gift selling is always disabled in Arayashu."
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        form = QFormLayout()
+        profile = QComboBox(dialog)
+        profile.addItem("Deep: 340 Graces + 70 Spiderweb = 410 Starlight", "deep")
+        profile.addItem("Economy: 180 Graces + 70 Spiderweb = 250 Starlight", "economy")
+        form.addRow("Profile", profile)
+        adversity = QComboBox(dialog)
+        adversity.addItem("All (higher difficulty and Starlight reward)", "all")
+        adversity.addItem("None (easier; no Adversity Starlight reward)", "none")
+        adversity.setCurrentIndex(0 if self.solo_options["adversities"] == "all" else 1)
+        form.addRow("Adversities", adversity)
+        failures = QSpinBox(dialog)
+        failures.setRange(1, 10)
+        failures.setValue(self.solo_options["max_failed_runs"])
+        form.addRow("Stop after failed runs", failures)
+        layout.addLayout(form)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Apply | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.solo_options = normalize_solo_options({
+            "adversities": adversity.currentData(),
+            "max_failed_runs": failures.value(),
+        })
+        self.apply_solo_profile(profile.currentData())
+        self.save_config()
+        self.save_affinity()
+        self.show_info(
+            "Solo profile saved. Check game Identities and the starting Spiderweb gift. "
+            "The first run count is 1. Unrecognized defense or Spiderweb stops the bot "
+            "instead of silently continuing."
+        )
+
+    def apply_solo_profile(self, name):
+        profile = solo_profile(name)
+        if not self.hard:
+            self.buttons["hard"].setChecked(True)
+            self.set_hardmode()
+        self.is_lux = False
+        self.lux.hide()
+        for index in range(7):
+            current = index == self.team
+            self.buttons[f"team{index}"].setChecked(current)
+            self.buttons[f"team{index}"].setIcon(
+                QIcon(Bot.APP_PTH["affinity"]) if current else QIcon()
+            )
+        self.selected_affinity[self.team] = profile["affinity"]
+        self.change_icon(profile["affinity"][0])
+        self.set_affinity_buttons(profile["affinity"])
+        self.sinner_selections[self.team] = profile["sinners"]
+        self.set_selected_buttons(profile["sinners"])
+        # No paid Wishmaking, no secret bosses, no automatic Enkephalin conversion.
+        on = [False, False, False, False, True, False, True]
+        self.set_buttons_active(on + profile["buff"] + [True])
+        self.activate_ego_gifts(profile["keywordless"])
+        self.set_card_buttons(profile["cards"])
+        self.priority = profile["priority"]
+        self.avoid = list(dict.fromkeys(self.get_avoid() + profile["avoid"]))
+        self.avoid = [pack for pack in self.avoid if pack not in self.priority]
+        self.priority_floors = {}
+        self.avoid_floors = {}
+        self.set_widgets()
+        self.inputField.setText("1")
+        self.count = 1
+        self.buttons["log"].setChecked(True)
 
     def set_priority(self, team=None):
         if team is None:
@@ -721,7 +808,7 @@ class MyApp(QWidget):
         self.buttons = {
             'update': CustomButton(self, {
                 'geometry': (202, 24, 298, 53),
-                'click_handler': lambda: webbrowser.open('https://github.com/Walpth/Charge-Grinder/releases/latest'),
+                'click_handler': lambda: webbrowser.open('https://github.com/OCOtheOmega/Mirror-Dungeon-Bot/releases/latest'),
                 'checkable': True,
                 'checked': True,
                 'icon': Bot.APP_PTH['update'],
@@ -919,6 +1006,7 @@ class MyApp(QWidget):
             extra.append(self.buttons[f"on{i + 7}"].isChecked())
         extra.append(self.hos_mode.isChecked())
         self.sm.set_extra(extra)
+        self.sm.data["SOLO"] = dict(self.solo_options)
         self.sync_webhook_settings(show_message=False)
         self.sm.save_settings()
 
@@ -1257,6 +1345,7 @@ class MyApp(QWidget):
         self.sm.set_config(7, {str(id): state for id, state in self.keywordless.items()})
         self.sm.set_config(8, self.get_config_buttons())
         self.sm.set_config(9, self.get_cards())
+        self.sm.data["SOLO"] = dict(self.solo_options)
         self.sm.save_settings()
         self.ego_panel.hide()
         self.grace_panel.hide()
@@ -1694,7 +1783,7 @@ class MyApp(QWidget):
     def get_params(self):
         # MD count
         text = self.inputField.text()
-        if text != "ALL": self.count = int(text)
+        if text not in ("", "0", "ALL"): self.count = int(text)
         else: self.count = -1
 
         # Lux count
@@ -1754,9 +1843,10 @@ class MyApp(QWidget):
             'enkephalin' : self.buttons['on3'].isChecked() if not self.is_lux else self.buttons['on9'].isChecked(),
             'skip'       : self.buttons['on4'].isChecked(),
             'wishmaking' : self.buttons['on5'].isChecked(),
-            'winrate'    : self.hard or self.buttons['on6'].isChecked() if not p.HOS_MODE else self.buttons['on6'].isChecked(), # Thanks to @zombpr for finding this
+            'winrate'    : use_winrate(self.hard, self.buttons['on6'].isChecked(), self.hos_mode.isChecked()),
             'infinity'   : self.hard and self.buttons['on6'].isChecked(),
             'hos_mode'   : self.hos_mode.isChecked(),
+            'solo_options': dict(self.solo_options),
             'buff'       : [getattr(self.buttons[f'buff{i}'], 'config', {}).get('state', 0) for i in range(10)],
             'card'       : self.get_cards(),
             'keywordless': {Bot.WORDLESS[id]['name']: state for id, state in self.keywordless.items()}

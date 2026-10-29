@@ -1,5 +1,7 @@
 from source.utils.utils import *
 from itertools import cycle
+from copy import deepcopy
+from source.arayashu import SoloSetupError, normalize_solo_options, validate_solo_selection
 
 from source.battle import fight, select_team
 from source.event import event
@@ -346,11 +348,20 @@ def set_team(team, teams, keywordless):
     p.TEAM = [list(team_list.keys())[aff] for aff in list(teams[team]["affinity"])]
     p.NAME_ORDER = teams[team]["affinity_idx"]
     p.DUPLICATES = teams[team]["duplicates"]
-    p.GIFTS = [team_list[keyword] for keyword in p.TEAM]
+    p.GIFTS = [deepcopy(team_list[keyword]) for keyword in p.TEAM]
 
     if not p.BUFF[3]: p.GIFTS[0]['uptie1'] = {k: p.GIFTS[0]['uptie1'][k] for k in list(p.GIFTS[0]['uptie1'])[:1]}
 
     p.SELECTED = [list(SINNERS.keys())[i] for i in list(teams[team]["sinners"])]
+    if p.HOS_MODE:
+        validate_solo_selection(p.SELECTED)
+    p.DEAD = 0
+    p.IDX = 0
+    p.TO_UPTIE = {}
+    p.HOS_LAST_DEAD = None
+    p.HOS_DEFENSE_TURNS = 0
+    p.HOS_PROTECTED_GIFT = None
+    p.IN_LUX = False
     p.PICK = generate_packs_pr(teams[team]["priority"])
     p.IGNORE = generate_packs_av(teams[team]["avoid"])
     p.PICK_ALL = generate_packs_all(teams[team]["priority"])
@@ -385,6 +396,7 @@ def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning)
     p.WISHMAKING = settings['wishmaking']
     p.WINRATE = settings['winrate']
     p.HOS_MODE = settings['hos_mode']
+    p.SOLO_OPTIONS = normalize_solo_options(settings.get("solo_options"))
     p.EXTREME = settings['infinity']
     p.APP = app
     p.WARNING = warning
@@ -412,6 +424,9 @@ def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning)
             print("Entering MD!")
             rotator = cycle(team_keys)
             keywordless = settings['keywordless']
+            failed_runs = 0
+            if p.HOS_MODE and len(team_keys) != 1:
+                raise SoloSetupError("Arayashu requires exactly one MD team; disable rotation.")
 
             for _ in range(count):
                 team = next(rotator)
@@ -420,6 +435,14 @@ def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning)
                 while not completed:
                     set_team(team, teams, keywordless)
                     completed = main_loop()
+                    if not completed:
+                        failed_runs += 1
+                        logging.warning("Failed MD attempts in this batch: %s", failed_runs)
+                        if p.HOS_MODE and failed_runs >= p.SOLO_OPTIONS["max_failed_runs"]:
+                            raise SoloSetupError(
+                                "Arayashu stopped after %s failed runs to limit Starlight losses."
+                                % failed_runs
+                            )
                     if p.NETZACH: check_enkephalin()
 
             if p.ALTF4:

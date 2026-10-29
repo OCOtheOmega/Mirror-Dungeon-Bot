@@ -2,6 +2,9 @@ from source.utils.utils import *
 from source.event import event
 import source.utils.params as p
 from itertools import product
+from source.arayashu import (
+    SoloSetupError, sacrifice_turn_limit, validate_sacrifice_progress,
+)
 
 
 exit_if = ["loading", "Move", "EGObin", "encounterreward", "victory", "defeat", "PackChoice"]
@@ -251,8 +254,25 @@ def select(sinners):
     correct_back = 0
     to_click = []
     regions = [SINNERS[name] for name in sinners]
+    dead_names = {
+        name for name, region in zip(sinners, regions)
+        if is_grayscale(screenshot(region=region))
+    }
+    p.DEAD = len(dead_names)
+    if p.HOS_MODE and not getattr(p, "IN_LUX", False):
+        if "RYOSHU" in dead_names:
+            raise SoloSetupError("Ryoshu is defeated. Stopped the solo run.")
+        validate_sacrifice_progress(
+            p.HOS_LAST_DEAD, p.DEAD, p.HOS_DEFENSE_TURNS, len(sinners)
+        )
+        p.HOS_LAST_DEAD = p.DEAD
+        p.HOS_DEFENSE_TURNS = 0
+
     death_offset = 0
     for i, region in enumerate(regions):
+        if sinners[i] in dead_names:
+            death_offset += 1
+            continue
         if any(
             region[0] < point[0] < region[0]+region[2] and
             region[1] < point[1] < region[1]+region[3]
@@ -264,9 +284,6 @@ def select(sinners):
             region[1] < point[1] < region[1]+region[3]
             for point in backup):
             correct_back += 1
-            continue
-        if is_grayscale(screenshot(region=region)): # dead
-            death_offset += 1
             continue
         to_click.append(gui.center(region))
     
@@ -286,7 +303,9 @@ def select(sinners):
         time.sleep(0.21)
         click.button("Confirm_alt")
         time.sleep(0.5)
-        for region in regions:
+        for name, region in zip(sinners, regions):
+            if name in dead_names:
+                continue
             win_click(gui.center(region))
             time.sleep(0.1)
     elif to_click:
@@ -320,7 +339,7 @@ def chain(gear_start, gear_end, background, is_defense=False):
     # print(moves)
     # Chaining
 
-    if p.HOS_MODE is False:
+    if not p.HOS_MODE or getattr(p, 'IN_LUX', False):
         win_moveTo(gear_start)
         gui.mouseDown()
         x += 75
@@ -361,7 +380,40 @@ def chain(gear_start, gear_end, background, is_defense=False):
 
 
 
+def submit_hos_turn():
+    """Submit the selected skills; never replace Phantom Step with Win Rate."""
+    time.sleep(0.2)
+    if now.button("winrate"):
+        gui.press("enter", 1, 0.1)
+        if not wait_while_condition(
+            lambda: now.button("winrate"), interval=0.2, timer=5
+        ):
+            raise SoloSetupError(
+                "Arayashu could not submit the prepared turn. "
+                "Stopped without replacing defense with Win Rate."
+            )
+
+
+def focused_hos_defense():
+    """Choose Win Rate first, then override Ryoshu's slot with Phantom Step."""
+    gui.press("p", 1, 0.1)
+    time.sleep(0.5)
+    for key in ("arayashu", "arayashu2", "arayashu3"):
+        box = LocateRGB.locate(
+            PTH[key], region=REG["arayashu"], conf=0.85
+        )
+        if box:
+            win_click(gui.center(box))
+            submit_hos_turn()
+            return
+    raise SoloSetupError(
+        "Ryoshu's portrait was not recognized for focused defense. "
+        "Stopped instead of attacking during the sacrifice phase."
+    )
+
+
 def fight(lux=False):
+    p.IN_LUX = lux
     is_tobattle = now.button("TOBATTLE")
     is_battle   = now_rgb.button("winrate") or now.button("pause")
     if not is_tobattle and not is_battle: return False
@@ -388,9 +440,8 @@ def fight(lux=False):
     last_error = 0
     attempts = 0
     defence_turns = 0
-    max_defense = 0
-    if p.HOS_MODE and len(p.SELECTED) - p.DEAD != 1:
-        max_defense = min(((len(p.SELECTED) - p.DEAD + int(p.DEAD == 0)) // 2), 5)
+    hos_mode = p.HOS_MODE and not lux
+    max_defense = sacrifice_turn_limit(len(p.SELECTED), p.DEAD) if hos_mode else 0
 
     while True:
         ck = False
@@ -399,7 +450,7 @@ def fight(lux=False):
             ck = True
             is_focused = True
             try:
-                if p.HOS_MODE is False:
+                if not hos_mode:
                     gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
                     gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
                     is_focused = False
@@ -420,7 +471,6 @@ def fight(lux=False):
                         # cv2.imwrite(f"data/battle_skills/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 150)))
                         background = screenshot(region=(round(gear_start[0] + 100), 775, round(gear_end[0] - gear_start[0] - 200), 10))
                         chain(gear_start, gear_end, background, is_defense=True)
-                        defence_turns += 1
                     else:
                         gear_start = gui.center(LocateEdges.try_locate(PTH["gear"], region=(0, 761, 900, 179), conf=0.7))
                         gear_end = gui.center(LocateEdges.try_locate(PTH["gear2"], region=(350, 730, 1570, 232), conf=0.7))
@@ -430,14 +480,25 @@ def fight(lux=False):
                         # cv2.imwrite(f"data/battle_state/{time.time()}.png", screenshot(region=(round(gear_start[0] + 100 - 55), 775, round(gear_end[0] - gear_start[0] - 200 + 125), 305)))
                         chain(gear_start, gear_end, background)
 
-                # success check
-                time.sleep(1)
-                if now.button("winrate"):
-                    gui.press("p", 1, 0.1)
-                    time.sleep(0.5)
-                    gui.press("enter", 1, 0.1)
+                # A prepared HoS chain must never be overwritten by P.
+                if hos_mode:
+                    submit_hos_turn()
+                    if defence_turns < max_defense:
+                        defence_turns += 1
+                        p.HOS_DEFENSE_TURNS += 1
+                else:
                     time.sleep(1)
+                    if now.button("winrate"):
+                        gui.press("p", 1, 0.1)
+                        time.sleep(0.5)
+                        gui.press("enter", 1, 0.1)
+                        time.sleep(1)
             except gui.ImageNotFoundException:
+                if hos_mode and defence_turns < max_defense:
+                    focused_hos_defense()
+                    defence_turns += 1
+                    p.HOS_DEFENSE_TURNS += 1
+                    continue
                 gui.press("p", 1, 0.1)
                 time.sleep(0.5)
 
@@ -489,6 +550,9 @@ def fight(lux=False):
                 wait_while_condition(lambda: not now.button("Confirm_retry", method=cv2.TM_SQDIFF_NORMED), lambda: win_click(1200, 530), interval=1, timer=3)
                 gui.press("space")
                 loading_halt()
+                # Retrying restores the encounter; repeat its sacrifice phase.
+                defence_turns = 0
+                p.HOS_DEFENSE_TURNS = 0
                 logging.info(f"Re-attempting the battle (attempt {attempts + 1})")
 
         for i in exit_if:

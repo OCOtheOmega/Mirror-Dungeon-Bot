@@ -1,5 +1,6 @@
 from source_app.utils import *
 from source.utils.paths import PACKS, WORDLESS
+from source.arayashu import normalize_solo_options
 
 class SettingsManager(QObject):
     import_error = pyqtSignal(str)
@@ -155,9 +156,11 @@ class SettingsManager(QObject):
     
     def verify_file_data(self, data):
         corrupted_data = set()
-        main_entries = {"CONFIG", "HARD", "TEAMS", "AFFINITY", "EXTRA", "WEBHOOK"}
+        main_entries = {"CONFIG", "HARD", "TEAMS", "AFFINITY", "EXTRA", "WEBHOOK", "SOLO"}
         data = self.clean_entries(data, main_entries)
 
+        if "SOLO" in data:
+            data["SOLO"] = normalize_solo_options(data["SOLO"])
         configs = set(data.keys()) & {"CONFIG", "HARD"}
 
         def is_valid_config_floor_structure(value):
@@ -183,14 +186,19 @@ class SettingsManager(QObject):
             list1 = [p for p in list1 if valid_pack_in_lists(p)]
             list2 = [p for p in list2 if valid_pack_in_lists(p)]
 
-            list1 = list(set(list1))
+            list1 = list(dict.fromkeys(list1))
             list2 = [p for p in list2 if p not in list1]
 
             def valid_dict_item(pack, value):
                 if pack not in PACKS: return False
 
                 allowed_floors = PACKS[pack][index]
-                return value in allowed_floors
+                if type(value) is not int or not 1 <= value <= (15 if index else 5):
+                    return False
+                normalized = 5 if index and 6 <= value <= 10 else (
+                    15 if index and 11 <= value <= 15 else value
+                )
+                return normalized in allowed_floors
 
             dict1 = {
                 pack: v

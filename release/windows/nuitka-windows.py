@@ -1,3 +1,4 @@
+import argparse
 import os
 import subprocess
 import sys
@@ -28,9 +29,9 @@ def _as_windows_file_version(version: str) -> str:
 def _cmd(output_name: str, console_mode: str):
     app_version = _read_app_version()
     file_version = _as_windows_file_version(app_version)
-    company_name = "app"
-    product_name = "app"
-    file_description = "desktop app"
+    company_name = "OCOtheOmega"
+    product_name = "ChargeGrinder Arayashu"
+    file_description = "ChargeGrinder Arayashu Hard reliability fork"
     onefile_tempdir = "{CACHE_DIR}/{COMPANY}/{PRODUCT}/{VERSION}"
 
     return [
@@ -41,6 +42,7 @@ def _cmd(output_name: str, console_mode: str):
         "--remove-output",
         "--enable-plugin=pyside6",
         "--assume-yes-for-downloads",
+        "--msvc=latest",
         f"--company-name={company_name}",
         f"--product-name={product_name}",
         f"--file-description={file_description}",
@@ -72,9 +74,15 @@ def build_one(output_name: str, console_mode: str):
 
 
 def main():
-    # app.exe: windowed, app_debug.exe: console
-    build_one("app", "disable")
-    build_one("app_debug", "force")
+    parser = argparse.ArgumentParser(description="Build ChargeGrinder Windows executables")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--gui-only", action="store_true")
+    group.add_argument("--debug-only", action="store_true")
+    args = parser.parse_args()
+    if not args.debug_only:
+        build_one("app", "disable")
+    if not args.gui_only:
+        build_one("app_debug", "force")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,11 @@ EXTREME = False
 APP = None
 
 HOS_MODE = False
+SOLO_OPTIONS = {"adversities": "all", "max_failed_runs": 2}
+HOS_LAST_DEAD = None
+HOS_DEFENSE_TURNS = 0
+HOS_PROTECTED_GIFT = None
+IN_LUX = False
 
 PICK = {}
 IGNORE = {}

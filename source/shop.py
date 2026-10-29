@@ -3,6 +3,7 @@ from itertools import combinations_with_replacement
 import source.utils.params as p
 from source.teams import TEAMS
 from source_app.params import CACHE
+from source.arayashu import guard_web_fusion, guard_fusion_selection
 
 loc_shop = loc_rgb(conf=0.83, wait=False, method=cv2.TM_SQDIFF_NORMED)
 shop_click = loc_shop(click=True, wait=5)
@@ -71,10 +72,10 @@ def decide_fusion(target_tier, inventory, depth=0):
     if target_tier not in fusion_ranges: raise ValueError("Invalid target fusion tier")
 
     if p.SUPER == "shop":
-        combos = COMBOS
+        combos = list(COMBOS)
         ranges = fusion_ranges
     else:
-        combos = EXTRA
+        combos = list(EXTRA)
         ranges = super_ranges
 
     if p.WISHMAKING:
@@ -349,6 +350,8 @@ def fuse_selected():
     )
 
 def perform_clicks(to_click):
+    if p.HOS_MODE:
+        guard_fusion_selection(to_click, p.HOS_PROTECTED_GIFT)
     if p.WISHMAKING and not now_rgb.button("wishmaking"):
         time.sleep(0.1)
         wait_while_condition(lambda: not now.button("Confirm.0"), lambda: win_click(410, 755), interval=0.2, timer=0.2)
@@ -517,6 +520,8 @@ def fuse():
             time.sleep(0.5)
 
     coords, coords_agg, have = get_inventory()
+    if p.HOS_MODE:
+        p.HOS_PROTECTED_GIFT = guard_web_fusion(have)
     to_click = []
     fuse_type = 0
     got_all = False
@@ -677,6 +682,9 @@ def get_uptie_inventory(gift_list):
             h += 1
 
 def search_sell(reg):
+    # A missed image match must not turn an essential solo gift into sale fodder.
+    if p.HOS_MODE:
+        return False
     coords, _, _, _ = inventory_check(reg, 0, uptie_det=True)
     for i in range(4, 0, -1):
         if coords[i] != []:
@@ -690,6 +698,9 @@ def search_sell(reg):
     return False
 
 def sell(gifts):
+    if p.HOS_MODE:
+        logging.info("Arayashu: automatic selling is disabled to protect Spiderweb.")
+        return balance() >= sum(gifts.values())
     money = None
     while True:
         update_money = balance()
@@ -982,7 +993,8 @@ def buy_skill3():
             return
 
     coord = None
-    for sinner in p.SELECTED[:7]:
+    skill_targets = ["RYOSHU"] if p.HOS_MODE else p.SELECTED[:7]
+    for sinner in skill_targets:
         box = LocateGray.locate(PTH[f"{sinner.lower()}_s3"], region=REG["buy_s3"], conf=0.85)
         if box:
             coord = gui.center(box)

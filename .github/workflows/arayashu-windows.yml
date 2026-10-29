@@ -1,0 +1,100 @@
+name: Arayashu Windows prerelease
+
+on:
+  push:
+    branches: ["fix/arayashu-hard-reliability"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arayashu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check Python syntax
+        run: python -m compileall -q App.py Bot.py source source_app tests release/windows
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+
+  build:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: gui
+            flag: --gui-only
+            exe: app.exe
+          - kind: debug
+            flag: --debug-only
+            exe: app_debug.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install -r requirements.txt nuitka ordered-set zstandard
+      - name: Build executable
+        run: python release/windows/nuitka-windows.py ${{ matrix.flag }}
+      - name: Verify binary version and checksum
+        shell: pwsh
+        env:
+          EXE: ${{ matrix.exe }}
+        run: |
+          $expected = (Get-Content version -Raw).Trim() + ".0"
+          $file = Join-Path build $env:EXE
+          if (!(Test-Path $file)) { throw "Missing executable: $file" }
+          $actual = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $file)).FileVersion
+          if ($actual -ne $expected) { throw "Version mismatch: $actual, expected $expected" }
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:EXE" | Set-Content "build/$env:EXE.sha256" -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arayashu-${{ matrix.kind }}
+          path: |
+            build/${{ matrix.exe }}
+            build/${{ matrix.exe }}.sha256
+          if-no-files-found: error
+
+  release:
+    if: github.event_name != 'pull_request'
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: arayashu-*
+          path: dist
+          merge-multiple: true
+      - name: Publish fork prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          version="$(cat version)"
+          tag="v${version}-arayashu.1"
+          cat dist/*.sha256 > dist/SHA256SUMS.txt
+          gh release create "$tag" dist/app.exe dist/app_debug.exe dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "ChargeGrinder ${version} Arayashu Hard — fork prerelease" \
+            --notes-file docs/arayashu-release.md
