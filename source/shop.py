@@ -165,6 +165,23 @@ def inventory_check(reg, h, uptie_det=True):
     # cv2.imwrite(f"testing/fuse{time.time()}.png", fuse_shelf)
     image = amplify(fuse_shelf)
 
+    # Establish the protected gift on the pristine scan, before another match
+    # can mask it. Keep the existing recognition threshold; never guess ownership.
+    if p.HOS_MODE:
+        template = CACHE.get("spiderweb")
+        if template is None:
+            template = amplify(cv2.imread(PTH["spiderweb"]))
+        box = LocateRGB.locate(template, image=image, region=reg, conf=0.86)
+        runlog.event("spiderweb_scan", floor=p.LVL, page=h, region=list(reg),
+                     recognized=box is not None, threshold=0.86)
+        if box is not None:
+            x, y = gui.center(box)
+            have["spiderweb"] = (x, y, h)
+            corners = ((int(x - 62 - reg[0]), int(y - 72 - reg[1])),
+                       (int(x + 60 - reg[0]), int(y + 60 - reg[1])))
+            fuse_shelf = rectangle(fuse_shelf, *corners, (0, 0, 0), -1)
+            image = rectangle(image, *corners, (0, 0, 0), -1)
+
     for i in range(len(p.GIFTS)):
         if p.GIFTS[i]["sin"]:
             uptie_ego = p.GIFTS[i]["uptie1"] | p.GIFTS[i]["uptie2"] | (p.GIFTS[i]["uptie3"] if i != 0 else {})
@@ -172,6 +189,8 @@ def inventory_check(reg, h, uptie_det=True):
             uptie_ego = {}
 
         for gift in p.GIFTS[i]["all"]:
+            if gift == "spiderweb" and gift in have:
+                continue
             try:
                 if gift in CACHE: template = CACHE[gift]
                 else: template = amplify(cv2.imread(PTH[gift]))
@@ -193,6 +212,8 @@ def inventory_check(reg, h, uptie_det=True):
                 continue
 
     for gift in list(p.KEYWORDLESS.keys()):
+        if gift == "spiderweb" and gift in have:
+            continue
         try:
             if gift in CACHE: template = CACHE[gift]
             else: template = amplify(cv2.imread(PTH[gift]))
@@ -294,14 +315,20 @@ def get_inventory():
                 print("scroll up for invetory scan")
                 browse(hook_x, step=-140, adj=adj)
 
-                if LocateGray.check(PTH["gifts_owned"], region=REG["fuse_shelf"], wait=False):
-                    break
+                at_owned_header = LocateGray.check(
+                    PTH["gifts_owned"], region=REG["fuse_shelf"], wait=False
+                )
 
                 new_coords, new_coords_agg, new_have, new_uptie = inventory_check(REG["fuse_shelf_peak"], h)
                 coords = concat(coords, new_coords)
                 coords_agg = concat(coords_agg, new_coords_agg)
                 have.update(new_have)
                 uptie.update(new_uptie)
+
+                # The newly exposed row may contain Spiderweb. Scan it even
+                # when the header just became visible, then finish traversing.
+                if at_owned_header:
+                    break
 
                 ck = LocateRGB.locate(PTH["height_ck"], region=(920, 585, 790, 165), method=1)
                 adj = 625 - gui.center(ck)[1] if ck else 0

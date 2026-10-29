@@ -241,6 +241,52 @@ class BattleTests(unittest.TestCase):
         self.assertNotIn(("press", "enter"), calls)
 
 class GiftSafetyTests(unittest.TestCase):
+    def test_inventory_scans_new_row_before_stopping_at_owned_header(self):
+        empty = lambda: {i:[] for i in range(1,5)}
+        scan = Mock(side_effect=[
+            (empty(), empty(), {"other":(1000,500,0)}, {}),
+            (empty(), empty(), {"spiderweb":(1200,370,1)}, {}),
+        ])
+        def button(*names):
+            return names == ("scroll.0",) or len(names) > 1
+        concat, _ = function("source/shop.py", "concat")
+        inventory, _ = function("source/shop.py", "get_inventory", {
+            "time":SimpleNamespace(sleep=Mock()), "random":SimpleNamespace(choice=lambda xs:xs[0]),
+            "now_rgb":SimpleNamespace(button=button),
+            "LocateGray":SimpleNamespace(locate=lambda *a,**kw:None, check=lambda *a,**kw:True),
+            "PTH":{"gifts_owned":"header"},
+            "REG":{"fuse_shelf":(920,295,790,482), "fuse_shelf_peak":(920,304,790,150)},
+            "inventory_check":scan, "concat":concat, "browse":Mock(), "browse_fast":Mock(),
+            "p":SimpleNamespace(TO_UPTIE={}),
+        })
+        _, _, have = inventory()
+        self.assertEqual(have["spiderweb"], (1200,370,1))
+        self.assertEqual(scan.call_count,2)
+
+    def test_spiderweb_is_located_on_pristine_image_before_other_gift_masks(self):
+        masked = []
+        def locate(template, **kwargs):
+            self.assertEqual(template,"web")
+            self.assertFalse(masked)
+            return (1000,350,90,90)
+        def rectangle(image, *args):
+            masked.append(True)
+            return image
+        p = SimpleNamespace(HOS_MODE=True, LVL=1, WINDOW=(0,0,1920,1080),
+            GIFTS=[{"sin":False,"all":["other"],"checks":[0,0,0,0,"aff"]}],
+            KEYWORDLESS={"spiderweb":2})
+        check, _ = function("source/shop.py", "inventory_check", {
+            "p":p, "screenshot":lambda **kw:object(), "amplify":lambda image:image,
+            "CACHE":{"spiderweb":"web","other":"other"},
+            "LocateRGB":SimpleNamespace(locate=locate,
+                try_locate=lambda *a,**kw:(1200,350,90,90), locate_all=lambda *a,**kw:[]),
+            "gui":SimpleNamespace(center=lambda b:(b[0]+b[2]/2,b[1]+b[3]/2)),
+            "rectangle":rectangle, "PTH":{"aff":"aff",**{str(i):str(i) for i in range(1,5)}},
+            "cv2":SimpleNamespace(TM_SQDIFF_NORMED=1),
+        })
+        _, _, have, _ = check((920,295,790,482),0,uptie_det=False)
+        self.assertEqual(have["spiderweb"],(1045,395,0))
+
     def test_selling_cannot_reach_ui_in_hos_even_if_web_match_is_missing(self):
         fail = Mock(side_effect=AssertionError("Sale UI must not be used"))
         p = SimpleNamespace(HOS_MODE=True)
