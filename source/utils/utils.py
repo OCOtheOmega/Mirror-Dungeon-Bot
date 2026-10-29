@@ -1,6 +1,7 @@
 import numpy as np, cv2, random, time, os, platform, logging
 from source.utils.paths import *
 import source.utils.params as p
+from source import run_diagnostics as runlog
 
 from PySide6.QtCore import QMetaObject, Qt
 
@@ -38,6 +39,19 @@ def screenshot(region=(0, 0, 1920, 1080)): # works only for cv2!
         round(w*comp),
         round(h*comp)
     )))
+
+def diagnostic_snapshot(label):
+    """Capture only the active game window, never another foreground app."""
+    if not p.HOS_MODE or getattr(p, "IN_LUX", False):
+        return
+    try:
+        if p.LIMBUS_NAME not in (gui.getActiveWindowTitle() or ""):
+            runlog.event("screenshot_skipped", label=label, reason="game_not_foreground")
+            return
+        runlog.capture(label, lambda path: cv2.imwrite(str(path), screenshot()))
+    except Exception as error:
+        runlog.event("screenshot_skipped", label=label, reason=type(error).__name__)
+
 
 def rectangle(image, point1, point2, color, type):
     comp = p.WINDOW[2] / 1920
@@ -99,6 +113,7 @@ def countdown(seconds): # no more than 99 seconds!
     print("Grinding Time!")
 
 def pause(other_win=None):
+    runlog.event("paused")
     print(f"Switched to window: {other_win}")
     logging.info(f"Execution paused")
     if hasattr(gui, "restore_mouse_settings"):
@@ -116,6 +131,7 @@ def pause(other_win=None):
     else: raise StopExecution
     gui.set_window()
     logging.info("Execution resumed")
+    runlog.event("resumed")
 
 
 def close_limbus(error=None):

@@ -1,6 +1,7 @@
 from source_app.utils import *
 from source_app.cache import CacheWorker
 from source.utils.paths import APP_VERSION
+from source import run_diagnostics as runlog
 
 from PySide6.QtCore import QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -72,6 +73,7 @@ class BotWorker(QObject):
         self.cache_worker = None
 
     def run(self):
+        runlog.start_session(self.settings, self.teams, self.hard, APP_VERSION)
         try:
             teams_filtered = {k: v for k, v in self.teams.items() if k < 7}
             if teams_filtered:
@@ -88,9 +90,11 @@ class BotWorker(QObject):
                 warning=self.warning.emit
             )
         except Exception as e:
+            runlog.event("worker_error", exception_type=type(e).__name__, reason=str(e))
             logging.exception("Uncaught exception in BotWorker thread")  
             self.error.emit(str(e))
         finally:
+            runlog.finish_session()
             self.stop_cache_thread()
             self.finished.emit()
 

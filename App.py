@@ -1,6 +1,7 @@
 import json, logging, os, threading
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QSpinBox
 from source.arayashu import normalize_solo_options, solo_profile, use_winrate
+from source import run_diagnostics as runlog
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -1927,6 +1928,7 @@ class MyApp(QWidget):
     def stop_execution(self):
         print("Stopping execution...")
         if p.STOP_REASON:
+            runlog.event("stop_requested", reason=p.STOP_REASON)
             logging.info(f"Execution stopped: {p.STOP_REASON}")
             p.STOP_REASON = None
         p.stop_event.set()

@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
+from source import run_diagnostics as runlog
 
 from source.arayashu import (
     SoloSetupError, guard_fusion_selection, guard_web_fusion,
@@ -25,6 +26,8 @@ def function(path, name, namespace=None, owner=None):
     node = copy.deepcopy(next(n for n in nodes if isinstance(n, ast.FunctionDef) and n.name == name))
     node.decorator_list = []
     ns = dict(namespace or {})
+    ns.setdefault("runlog", runlog)
+    ns.setdefault("diagnostic_snapshot", Mock())
     exec(compile(ast.Module(body=[node], type_ignores=[]), path, "exec"), ns)
     return ns[name], ns
 
@@ -148,6 +151,7 @@ class BattleTests(unittest.TestCase):
             return (100, 800, 140, 50)
         p = SimpleNamespace(
             HOS_MODE=True, DEAD=0, SELECTED=["RYOSHU"] + ["X"]*9,
+            LVL=1,
             HOS_DEFENSE_TURNS=0, LIMBUS_NAME="LimbusCompany", RESTART=False,
             ALTF4=False,
         )
@@ -226,7 +230,7 @@ class GiftSafetyTests(unittest.TestCase):
             "time": SimpleNamespace(sleep=Mock()),
             "handle_available_fusion": lambda: False,
             "get_inventory": lambda: ({}, {}, {}),
-            "p": SimpleNamespace(HOS_MODE=True),
+            "p": SimpleNamespace(HOS_MODE=True, LVL=1),
             "guard_web_fusion": guard_web_fusion, "fuse_search": dangerous,
         })
         with self.assertRaises(SoloSetupError):
@@ -243,7 +247,7 @@ class GiftSafetyTests(unittest.TestCase):
 
     def test_last_line_fusion_guard_precedes_clicks(self):
         perform, _ = function("source/shop.py", "perform_clicks", {
-            "p": SimpleNamespace(HOS_MODE=True, HOS_PROTECTED_GIFT=(1000,500,0)),
+            "p": SimpleNamespace(HOS_MODE=True, LVL=1, HOS_PROTECTED_GIFT=(1000,500,0)),
             "guard_fusion_selection": guard_fusion_selection,
         })
         with self.assertRaises(SoloSetupError):
@@ -301,6 +305,7 @@ class SettingsTests(unittest.TestCase):
         buttons = {f"on{i}": checked(i == 6) for i in range(12)}
         buttons.update({f"team{i}": checked(i == 0) for i in range(7)})
         buttons["log"] = checked(False)
+        buttons.update({f"buff{i}": checked(False) for i in range(10)})
         app = SimpleNamespace(
             inputField=SimpleNamespace(text=lambda:"1"),
             exp=SimpleNamespace(text=lambda:"0"), thd=SimpleNamespace(text=lambda:"0"),

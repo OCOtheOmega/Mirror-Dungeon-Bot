@@ -1,4 +1,5 @@
 from source.utils.utils import *
+from source import run_diagnostics as runlog
 
 
 def within_region(x, regions):
@@ -56,6 +57,7 @@ def pack_eval(level, regions, skip, skips):
                     # found a match
                     print(f"Entering {pr}")
                     logging.info(f"Pack: {pr}")
+                    runlog.event("pack_chosen", floor=level, pack=pr)
                     remove_pack(level, pr)
                     return packs[pr]
             else:
@@ -85,6 +87,7 @@ def pack_eval(level, regions, skip, skips):
             name = packs_sorted[default_key]
             remove_pack(level, name)
             logging.info(f"Pack: {name}")
+            runlog.event("pack_chosen", floor=level, pack=name)
             return packs[name]
         return 0
 
@@ -112,6 +115,7 @@ def pack_eval(level, regions, skip, skips):
     remove_pack(level, name)
     print(f"Entering {name}")
     logging.info(f"Pack: {name}")
+    runlog.event("pack_chosen", floor=level, pack=name)
     return id
 
 
@@ -137,10 +141,13 @@ def update_lvl(level):
             break
 
     if (assumed_lvl in range(1, 6)) or (p.EXTREME and assumed_lvl in range(1, 16)):
+        runlog.floor_read(assumed_lvl, "template", previous=level, template_threshold=0.95, comparison_score=digit_conf or None)
         return assumed_lvl
     elif (level + 1 in range(1, 6)) or (p.EXTREME and level + 1 in range(1, 16)):
+        runlog.floor_read(level + 1, "fallback_increment", previous=level, raw=assumed_lvl)
         return level + 1
     else:
+        runlog.floor_read(level, "fallback_unchanged", raw=assumed_lvl)
         return level
 
 
@@ -199,7 +206,11 @@ def pack():
             win_click(1617, 62, tsize=(240, 60))
             time.sleep(2)
     
-    wait_while_condition(lambda: now.button("PackChoice"), interval=0.1)
+    submitted = wait_while_condition(lambda: now.button("PackChoice"), interval=0.1)
+    if submitted:
+        runlog.floor_entered(p.LVL)
+    else:
+        runlog.event("pack_submission_timeout", floor=p.LVL)
     if p.LVL != 1: p.MOVE_ANIMATION = True
     else: time.sleep(0.5)
     return True

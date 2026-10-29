@@ -2,6 +2,7 @@ from source.utils.utils import *
 from itertools import cycle
 from copy import deepcopy
 from source.arayashu import SoloSetupError, normalize_solo_options, validate_solo_selection
+from source import run_diagnostics as runlog
 
 from source.battle import fight, select_team
 from source.event import event
@@ -34,6 +35,7 @@ start_locations = {
 }
 
 def select_grace():
+    diagnostic_snapshot("graces_before")
     for i in range(len(p.BUFF)):
         if p.BUFF[i]:
             x = int(335 + 297*(i % 5))
@@ -41,6 +43,7 @@ def select_grace():
             ClickAction((x, y), ver="money!").execute(try_click)
             if p.BUFF[i] > 1:
                 ClickAction((x + 60*(1 - 2*(p.BUFF[i] < 3)), y + 155), ver="money!").execute(try_click)
+    diagnostic_snapshot("graces_after")
 
 def dungeon_start():
     ACTIONS = [
@@ -91,10 +94,12 @@ def dungeon_start():
     failed = 0
     while True:
         try:
-            if now_click.button("resume"): 
+            if now_click.button("resume"):
+                runlog.event("entry_resume_clicked")
                 wait_while_condition(lambda: now.button("Start"), timer=5),
             for key in start_locations.keys():
                 if now.button(key):
+                    runlog.event("entry_screen", screen=key)
                     i = start_locations[key]
                     break
             else: break
@@ -110,6 +115,7 @@ def dungeon_start():
             logging.error("Initialization error")
             break
     print("Entering MD!")
+    diagnostic_snapshot("entry_complete")
 
 
 # END RUN
@@ -165,6 +171,7 @@ end_locations = {
 }
 
 def dungeon_end():
+    diagnostic_snapshot("reward_screen")
     failed = 0
     while True:
         try:
@@ -214,6 +221,7 @@ fail_locations = {
 }
 
 def dungeon_fail():
+    diagnostic_snapshot("defeat_screen")
     failed = 0
     while True:
         try:
@@ -239,6 +247,7 @@ def dungeon_fail():
 
 
 # MAIN LOOP
+@runlog.observed_run(on_error=lambda: diagnostic_snapshot("stop"))
 def main_loop():
     dungeon_start()
     error = 0
@@ -295,7 +304,8 @@ def main_loop():
                 ck += get_adversity()
             ck += grab_card()
             ck += shop()
-        except RuntimeError:
+        except RuntimeError as error:
+            runlog.event("recovery", floor=p.LVL, exception_type=type(error).__name__, reason=str(error))
             handle_fuckup()
             error += 1
         except gui.PauseException as e:
@@ -381,6 +391,7 @@ def set_team(team, teams, keywordless):
     if p.HOS_MODE:
         p.KEYWORDLESS = p.KEYWORDLESS | {"spiderweb": 2}
     logging.info(f'Difficulty: {difficulty}')
+    runlog.begin_run(team, p.SELECTED, p.TEAM)
 
 
 def execute_me(count, count_exp, count_thd, teams, settings, hard, app, warning):

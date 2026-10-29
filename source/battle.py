@@ -2,6 +2,7 @@ from source.utils.utils import *
 from source.event import event
 import source.utils.params as p
 from itertools import product
+from source import run_diagnostics as runlog
 from source.arayashu import (
     SoloSetupError, sacrifice_turn_limit, validate_sacrifice_progress,
 )
@@ -260,6 +261,11 @@ def select(sinners):
     }
     p.DEAD = len(dead_names)
     if p.HOS_MODE and not getattr(p, "IN_LUX", False):
+        runlog.event(
+            "deployment_observed", floor=p.LVL, dead=p.DEAD,
+            alive=[name for name in sinners if name not in dead_names],
+            dead_sinners=sorted(dead_names), previous_defense_turns=p.HOS_DEFENSE_TURNS,
+        )
         if "RYOSHU" in dead_names:
             raise SoloSetupError("Ryoshu is defeated. Stopped the solo run.")
         validate_sacrifice_progress(
@@ -404,6 +410,7 @@ def focused_hos_defense():
         )
         if box:
             win_click(gui.center(box))
+            diagnostic_snapshot("focused_defense")
             submit_hos_turn()
             return
     raise SoloSetupError(
@@ -437,6 +444,7 @@ def fight(lux=False):
             select(p.SELECTED[:6])
 
     print("Entered Battle")
+    runlog.event("battle_started", floor=p.LVL, dead=p.DEAD)
     last_error = 0
     attempts = 0
     defence_turns = 0
@@ -486,6 +494,8 @@ def fight(lux=False):
                     if defence_turns < max_defense:
                         defence_turns += 1
                         p.HOS_DEFENSE_TURNS += 1
+                        runlog.event("defense_submitted", floor=p.LVL, turn=defence_turns, focused=False)
+                        diagnostic_snapshot("defense_submitted")
                 else:
                     time.sleep(1)
                     if now.button("winrate"):
@@ -498,6 +508,7 @@ def fight(lux=False):
                     focused_hos_defense()
                     defence_turns += 1
                     p.HOS_DEFENSE_TURNS += 1
+                    runlog.event("defense_submitted", floor=p.LVL, turn=defence_turns, focused=True)
                     continue
                 gui.press("p", 1, 0.1)
                 time.sleep(0.5)
@@ -529,6 +540,7 @@ def fight(lux=False):
 
         if now.button("RetryStage"):
             attempts += 1
+            runlog.event("battle_retry_screen", floor=p.LVL, attempt=attempts)
             if attempts >= 3:
                 logging.info("Got stuck in hard battle")
                 if not p.RESTART:
@@ -545,6 +557,7 @@ def fight(lux=False):
                     loading_halt()
                     print("Battle is over")
                     logging.info("Battle is over")
+                    runlog.event("battle_finished", floor=p.LVL, result="aborted", retries=attempts)
                     return True
             else:
                 wait_while_condition(lambda: not now.button("Confirm_retry", method=cv2.TM_SQDIFF_NORMED), lambda: win_click(1200, 530), interval=1, timer=3)
@@ -560,6 +573,7 @@ def fight(lux=False):
                 if i == "loading": loading_halt()
                 print("Battle is over")
                 logging.info("Battle is over")
+                runlog.event("battle_finished", floor=p.LVL, result=i, retries=attempts)
                 return True
 
         # for i in range(3):

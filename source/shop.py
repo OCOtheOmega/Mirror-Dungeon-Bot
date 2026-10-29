@@ -4,6 +4,7 @@ import source.utils.params as p
 from source.teams import TEAMS
 from source_app.params import CACHE
 from source.arayashu import guard_web_fusion, guard_fusion_selection
+from source import run_diagnostics as runlog
 
 loc_shop = loc_rgb(conf=0.83, wait=False, method=cv2.TM_SQDIFF_NORMED)
 shop_click = loc_shop(click=True, wait=5)
@@ -351,6 +352,7 @@ def fuse_selected():
 
 def perform_clicks(to_click):
     if p.HOS_MODE:
+        runlog.event("fusion_selection", floor=p.LVL, ingredients=len(to_click), spiderweb_verified=p.HOS_PROTECTED_GIFT is not None)
         guard_fusion_selection(to_click, p.HOS_PROTECTED_GIFT)
     if p.WISHMAKING and not now_rgb.button("wishmaking"):
         time.sleep(0.1)
@@ -521,6 +523,9 @@ def fuse():
 
     coords, coords_agg, have = get_inventory()
     if p.HOS_MODE:
+        runlog.event("inventory_scanned", floor=p.LVL, gifts=sorted(have), spiderweb_recognized="spiderweb" in have)
+        if "spiderweb" not in have:
+            diagnostic_snapshot("missing_spiderweb")
         p.HOS_PROTECTED_GIFT = guard_web_fusion(have)
     to_click = []
     fuse_type = 0
@@ -684,6 +689,7 @@ def get_uptie_inventory(gift_list):
 def search_sell(reg):
     # A missed image match must not turn an essential solo gift into sale fodder.
     if p.HOS_MODE:
+        runlog.event("sale_scan_blocked")
         return False
     coords, _, _, _ = inventory_check(reg, 0, uptie_det=True)
     for i in range(4, 0, -1):
@@ -700,7 +706,9 @@ def search_sell(reg):
 def sell(gifts):
     if p.HOS_MODE:
         logging.info("Arayashu: automatic selling is disabled to protect Spiderweb.")
-        return balance() >= sum(gifts.values())
+        money = balance()
+        runlog.event("sale_blocked", required_cost=sum(gifts.values()), effective_cost=money)
+        return money >= sum(gifts.values())
     money = None
     while True:
         update_money = balance()
@@ -791,8 +799,10 @@ def balance():
             answer_me = False # you game me an answer, but not your own
             bal = -1 # I will ask again
     print("money", bal)
+    raw_cost = bal
     if p.LVL > 10:
         bal = apply_inflation(bal)
+    runlog.event("cost_observed", floor=p.LVL, displayed_cost=raw_cost, effective_cost=bal)
     return bal
 
 def apply_inflation(value):

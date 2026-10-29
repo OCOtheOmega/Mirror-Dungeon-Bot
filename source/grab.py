@@ -1,4 +1,5 @@
 from source.utils.utils import *
+from source import run_diagnostics as runlog
 import source.utils.params as p
 
 
@@ -214,6 +215,7 @@ def grab_card():
     for i in p.CARD:
         if now.button(f"card{i}", "Card"):
             get_card(f"card{i}")
+            runlog.event("reward_card_selected", floor=p.LVL, card=i)
             wait_while_condition(
                 condition=lambda: now.button("encounterreward"), 
                 action=lambda: win_click(1255, 924) if now.button("Confirm") else None,
@@ -247,5 +249,6 @@ def get_adversity():
         ClickAction((x + 90, 550), ver="selectCount!").execute(click)
     time.sleep(0.3)
     win_click(1725, 1000)
-    wait_while_condition(lambda: now.button("adversity"), interval=0.2)
+    submitted = wait_while_condition(lambda: now.button("adversity"), interval=0.2)
+    runlog.event("adversities_submitted", floor=p.LVL, selections=len(x_coords), confirmed=submitted, score_read=None)
     return True
